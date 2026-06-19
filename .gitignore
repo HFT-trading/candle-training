@@ -1,0 +1,20 @@
+/target
+.env
+config.yml
+*.config.yml
+binance_key
+binance_key.pub
+/logs
+/tracking
+/models
+*.
+/data
+
+# Python analytics scripts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+/datasets
