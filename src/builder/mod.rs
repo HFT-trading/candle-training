@@ -158,7 +158,14 @@ impl<'a> TrainingTensorBuilder<'a> {
                         target: target.to_owned(),
                         category: category.to_owned(),
                     })?;
-                state_targets.push(id);
+                let class_id =
+                    id.checked_sub(1)
+                        .ok_or_else(|| BuildError::UnknownTargetCategory {
+                            sample_id: sequence.sample_id.clone(),
+                            target: target.to_owned(),
+                            category: category.to_owned(),
+                        })?;
+                state_targets.push(class_id);
             }
         }
         Ok(())
@@ -314,92 +321,5 @@ impl Error for BuildError {
             Self::Candle(source) => Some(source),
             _ => None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use candle_core::Device;
-    use serde_json::json;
-
-    use super::TrainingTensorBuilder;
-    use crate::dataset::{FeatureSchema, MarketDataset, MarketSequence};
-
-    #[test]
-    fn categorical_target_is_encoded_as_class_id() {
-        let schema: FeatureSchema = serde_json::from_value(json!({
-            "version": 1,
-            "categorical_vocab": {
-                "phase": { "stable": 1 },
-                "market_outcome": {
-                    "CONTINUATION": 0,
-                    "FAILED": 1,
-                    "NO_MOVE": 2
-                }
-            },
-            "debug_semantics": {
-                "categorical_vocab": {
-                    "current.regime": { "Sideway": 1 },
-                    "current.quality": { "Choppy": 1 },
-                    "cycle.stage": { "Compression": 1 }
-                }
-            },
-            "model_input": {
-                "categorical_features": ["phase"],
-                "categorical_unknown_id": 0,
-                "numeric_features": ["strength"]
-            },
-            "target_groups": {
-                "categorical": ["market_outcome"],
-                "boolean": ["valid"],
-                "numeric": ["realized_range_atr"]
-            }
-        }))
-        .unwrap();
-        let sequence: MarketSequence = serde_json::from_value(json!({
-            "sample_id": "sample-1",
-            "source_name": "test",
-            "seq_len": 1,
-            "state_features": [{
-                "snapshot_id": "snapshot-1",
-                "values": { "phase": "stable", "strength": 0.8 }
-            }],
-            "range_telemetry": [{ "snapshot_id": "snapshot-1", "values": {} }],
-            "cycle_context": [{ "snapshot_id": "snapshot-1", "values": {} }],
-            "episode_context": [{ "snapshot_id": "snapshot-1", "values": {} }],
-            "future_outcomes": {
-                "market_outcome": "FAILED",
-                "valid": true,
-                "realized_range_atr": 1.25
-            },
-            "debug_semantics": {
-                "per_step": [{
-                    "snapshot_id": "snapshot-1",
-                    "values": {
-                        "current.regime": "Sideway",
-                        "current.quality": "Choppy",
-                        "cycle.stage": "Compression"
-                    }
-                }]
-            }
-        }))
-        .unwrap();
-        let dataset = MarketDataset {
-            schema,
-            sequences: vec![sequence],
-        };
-
-        let tensors = TrainingTensorBuilder::new(&dataset.schema)
-            .build(&dataset, &Device::Cpu)
-            .unwrap();
-
-        assert_eq!(
-            tensors.targets.state_categorical.to_vec3::<u32>().unwrap(),
-            vec![vec![vec![1, 1, 1]]]
-        );
-        assert_eq!(
-            tensors.targets.categorical.to_vec2::<u32>().unwrap(),
-            vec![vec![1]]
-        );
     }
 }

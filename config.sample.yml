@@ -1,0 +1,15 @@
+model:
+  categorical_embedding_dim: 8
+  numeric_projection_dim: 32
+  step_representation_dim: 64
+  gru_hidden_dim: 96
+
+training:
+  epochs: 10
+  batch_size: 64
+  learning_rate: 0.001
+  weight_decay: 0.01
+  validation_fraction: 0.15
+  shuffle_seed: 42
+  state_loss_weight: 1.0
+  outlook_loss_weight: 1.0

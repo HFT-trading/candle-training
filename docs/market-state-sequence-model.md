@@ -191,37 +191,24 @@ While a cycle is active, the model response should communicate:
 - calibrated probabilities for learned lifecycle outcomes;
 - optional historical range metadata for comparable states.
 
-The response is divided into two main sections:
+The response is a Rust value divided into two main sections. V1 does not need a
+JSON or external reporting contract:
 
-```json
-{
-  "market_state": {
-    "observed": {
-      "regime": "UpAttempt",
-      "quality": "Pressured",
-      "stage": "PressureBuild"
-    },
-    "inferred": {
-      "regime": "UpAttempt",
-      "quality": "Weak",
-      "stage": "EarlyExpansion",
-      "confidence": 0.71
-    }
-  },
-  "move_outlook": {
-    "reaches_25bps": 0.72,
-    "reaches_40bps": 0.46,
-    "returns_to_origin": 0.23,
-    "aligned_confirm": 0.61,
-    "counter_confirm": 0.14
-  }
+```rust
+#[derive(Debug)]
+struct ModelResponse<S> {
+    market_state: Option<MarketStateAssessment<S>>,
+    move_outlook: Option<MoveOutlook>,
+    // status and optional historical metadata
 }
+
+tracing::debug!(?response, "model inference updated");
 ```
 
 `observed` is supplied by the upstream parser. `inferred` is the model's
 sequence-aware interpretation. Strong disagreement between them is evidence
 for low confidence or abstention, not a reason to silently overwrite either
-value.
+value. Serialization can be added later if a real consumer requires it.
 
 The current Rust response contract lives in
 `src/core/prediction.rs`.
@@ -268,16 +255,22 @@ Implemented:
 - per-step regime, quality, and cycle-stage target tensors;
 - boolean and numeric target tensor construction;
 - categorical target tensor plumbing;
+- categorical embeddings and numeric projection;
+- train-split numeric normalization;
+- causal GRU sequence memory;
+- three per-step state heads and five move-outlook logits;
+- source-level train/validation isolation;
+- weighted state/outlook loss and AdamW mini-batch training;
+- model and numeric-normalizer checkpoint artifacts;
 - a generic inference response contract with explicit abstention;
 - 5,419 generated sequences of length 8 in the ignored `datasets/` directory.
 
 Not implemented:
 
 - a cycle identity or boundary marker exposed to the trainer;
-- causal prefix or recurrent sequence training;
 - cycle-level train/validation/test splitting;
-- step feature encoder and GRU sequence memory;
-- calibrated outcome heads;
+- causal prefix examples aligned to complete lifecycle boundaries;
+- calibrated probabilities and abstention thresholds;
 - stability estimation;
 - conditional range-statistics artifact;
 - embedded streaming inference state.
@@ -313,16 +306,13 @@ logits use a multi-label objective because the existing boolean outcomes can
 overlap. Numeric future outcomes do not receive a regression head or contribute
 to training loss.
 
-The per-step state targets are now loaded from `debug_semantics` and verified
-against the V5 dataset. Remaining implementation order:
+The V1 architecture and training loop are implemented. Remaining model work:
 
-1. encode the four categorical input fields with embeddings;
-2. normalize and project the numeric market-state fields;
-3. concatenate them into one step representation;
-4. add GRU sequence memory;
-5. add the three state heads and five-logit move-outlook head;
-6. expose `step`, `finalize`, and `reset` for embedded inference;
-7. calibrate probabilities and abstention thresholds on held-out cycles.
+1. expose `step`, `finalize`, and `reset` for embedded inference;
+2. produce lifecycle-aligned examples instead of overlapping fixed windows;
+3. split by true cycle identity when the exporter exposes it;
+4. measure per-head class balance and held-out metrics;
+5. calibrate probabilities and abstention thresholds on held-out cycles.
 
 The trainer still needs a cycle identifier or boundary marker so recurrent
 memory can be reset correctly and every cycle stays in exactly one dataset
