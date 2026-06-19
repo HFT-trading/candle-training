@@ -265,6 +265,7 @@ Implemented:
 
 - V5 schema and JSONL sequence loading;
 - categorical and numeric input tensor construction;
+- per-step regime, quality, and cycle-stage target tensors;
 - boolean and numeric target tensor construction;
 - categorical target tensor plumbing;
 - a generic inference response contract with explicit abstention;
@@ -312,17 +313,16 @@ logits use a multi-label objective because the existing boolean outcomes can
 overlap. Numeric future outcomes do not receive a regression head or contribute
 to training loss.
 
-Implementation order:
+The per-step state targets are now loaded from `debug_semantics` and verified
+against the V5 dataset. Remaining implementation order:
 
-1. load `current.regime`, `current.quality`, and `cycle.stage` as per-step state
-   targets from `debug_semantics`;
-2. encode the four categorical input fields with embeddings;
-3. normalize and project the numeric market-state fields;
-4. concatenate them into one step representation;
-5. add GRU sequence memory;
-6. add the three state heads and five-logit move-outlook head;
-7. expose `step`, `finalize`, and `reset` for embedded inference;
-8. calibrate probabilities and abstention thresholds on held-out cycles.
+1. encode the four categorical input fields with embeddings;
+2. normalize and project the numeric market-state fields;
+3. concatenate them into one step representation;
+4. add GRU sequence memory;
+5. add the three state heads and five-logit move-outlook head;
+6. expose `step`, `finalize`, and `reset` for embedded inference;
+7. calibrate probabilities and abstention thresholds on held-out cycles.
 
 The trainer still needs a cycle identifier or boundary marker so recurrent
 memory can be reset correctly and every cycle stays in exactly one dataset

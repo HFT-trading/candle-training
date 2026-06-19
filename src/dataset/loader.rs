@@ -57,6 +57,7 @@ fn validate_sequence(sequence: &MarketSequence, line: usize) -> Result<(), Datas
         sequence.range_telemetry.len(),
         sequence.cycle_context.len(),
         sequence.episode_context.len(),
+        sequence.debug_semantics.per_step.len(),
     ];
     if group_lengths
         .iter()

@@ -5,7 +5,7 @@ use candle_core::{Device, Tensor};
 use serde_json::Value;
 
 use crate::core::{ModelInputs, TrainingTargets, TrainingTensors};
-use crate::dataset::{FeatureSchema, MarketDataset, MarketSequence};
+use crate::dataset::{FeatureSchema, MarketDataset, MarketSequence, STATE_TARGET_FEATURES};
 
 pub struct TrainingTensorBuilder<'a> {
     schema: &'a FeatureSchema,
@@ -26,6 +26,7 @@ impl<'a> TrainingTensorBuilder<'a> {
         let categorical_count = self.schema.model_input.categorical_features.len();
         let numeric_count = self.schema.model_input.numeric_features.len();
         let categorical_target_count = self.schema.target_groups.categorical.len();
+        let state_target_count = STATE_TARGET_FEATURES.len();
         let boolean_target_count = self.schema.target_groups.boolean.len();
         let numeric_target_count = self.schema.target_groups.numeric.len();
 
@@ -33,6 +34,8 @@ impl<'a> TrainingTensorBuilder<'a> {
             Vec::with_capacity(sequence_count * sequence_length * categorical_count);
         let mut numeric = Vec::with_capacity(sequence_count * sequence_length * numeric_count);
         let mut categorical_targets = Vec::with_capacity(sequence_count * categorical_target_count);
+        let mut state_targets =
+            Vec::with_capacity(sequence_count * sequence_length * state_target_count);
         let mut boolean_targets = Vec::with_capacity(sequence_count * boolean_target_count);
         let mut numeric_targets = Vec::with_capacity(sequence_count * numeric_target_count);
 
@@ -45,6 +48,7 @@ impl<'a> TrainingTensorBuilder<'a> {
                 });
             }
             self.append_inputs(sequence, &mut categorical, &mut numeric)?;
+            self.append_state_targets(sequence, &mut state_targets)?;
             self.append_targets(
                 sequence,
                 &mut categorical_targets,
@@ -67,6 +71,11 @@ impl<'a> TrainingTensorBuilder<'a> {
                 )?,
             },
             targets: TrainingTargets {
+                state_categorical: Tensor::from_slice(
+                    &state_targets,
+                    (sequence_count, sequence_length, state_target_count),
+                    device,
+                )?,
                 categorical: Tensor::from_slice(
                     &categorical_targets,
                     (sequence_count, categorical_target_count),
@@ -113,6 +122,43 @@ impl<'a> TrainingTensorBuilder<'a> {
             for feature in &self.schema.model_input.numeric_features {
                 let value = required_value(sequence, step, feature)?;
                 numeric.push(numeric_value(sequence, feature, value)?);
+            }
+        }
+        Ok(())
+    }
+
+    fn append_state_targets(
+        &self,
+        sequence: &MarketSequence,
+        state_targets: &mut Vec<u32>,
+    ) -> Result<(), BuildError> {
+        for step in 0..sequence.seq_len {
+            for target in STATE_TARGET_FEATURES {
+                let value = sequence.state_target_at(step, target).ok_or_else(|| {
+                    BuildError::MissingStateTarget {
+                        sample_id: sequence.sample_id.clone(),
+                        step,
+                        target: target.to_owned(),
+                    }
+                })?;
+                let category = value.as_str().ok_or_else(|| BuildError::InvalidValue {
+                    sample_id: sequence.sample_id.clone(),
+                    feature: target.to_owned(),
+                    value: value.clone(),
+                })?;
+                let id = self
+                    .schema
+                    .debug_semantics
+                    .categorical_vocab
+                    .get(target)
+                    .and_then(|vocab| vocab.get(category))
+                    .copied()
+                    .ok_or_else(|| BuildError::UnknownTargetCategory {
+                        sample_id: sequence.sample_id.clone(),
+                        target: target.to_owned(),
+                        category: category.to_owned(),
+                    })?;
+                state_targets.push(id);
             }
         }
         Ok(())
@@ -232,6 +278,11 @@ pub enum BuildError {
         sample_id: String,
         target: String,
     },
+    MissingStateTarget {
+        sample_id: String,
+        step: usize,
+        target: String,
+    },
     UnknownTargetCategory {
         sample_id: String,
         target: String,
@@ -286,6 +337,13 @@ mod tests {
                     "NO_MOVE": 2
                 }
             },
+            "debug_semantics": {
+                "categorical_vocab": {
+                    "current.regime": { "Sideway": 1 },
+                    "current.quality": { "Choppy": 1 },
+                    "cycle.stage": { "Compression": 1 }
+                }
+            },
             "model_input": {
                 "categorical_features": ["phase"],
                 "categorical_unknown_id": 0,
@@ -313,6 +371,16 @@ mod tests {
                 "market_outcome": "FAILED",
                 "valid": true,
                 "realized_range_atr": 1.25
+            },
+            "debug_semantics": {
+                "per_step": [{
+                    "snapshot_id": "snapshot-1",
+                    "values": {
+                        "current.regime": "Sideway",
+                        "current.quality": "Choppy",
+                        "cycle.stage": "Compression"
+                    }
+                }]
             }
         }))
         .unwrap();
@@ -325,6 +393,10 @@ mod tests {
             .build(&dataset, &Device::Cpu)
             .unwrap();
 
+        assert_eq!(
+            tensors.targets.state_categorical.to_vec3::<u32>().unwrap(),
+            vec![vec![vec![1, 1, 1]]]
+        );
         assert_eq!(
             tensors.targets.categorical.to_vec2::<u32>().unwrap(),
             vec![vec![1]]

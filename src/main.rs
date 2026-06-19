@@ -1,4 +1,8 @@
 fn main() {
-    println!("bot-training");
-    println!("run the training data pipeline with: cargo run --bin train");
+    bot_training::logging::init();
+    tracing::info!("bot-training");
+    tracing::info!(
+        command = "cargo run --bin train",
+        "training pipeline command"
+    );
 }

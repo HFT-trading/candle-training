@@ -13,6 +13,7 @@ pub struct ModelInputs {
 }
 
 pub struct TrainingTargets {
+    pub state_categorical: Tensor,
     pub categorical: Tensor,
     pub boolean: Tensor,
     pub numeric: Tensor,

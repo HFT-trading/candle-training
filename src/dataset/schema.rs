@@ -6,8 +6,14 @@ use serde::Deserialize;
 pub struct FeatureSchema {
     pub version: u32,
     pub categorical_vocab: HashMap<String, HashMap<String, u32>>,
+    pub debug_semantics: DebugSemanticsSchema,
     pub model_input: ModelInputSchema,
     pub target_groups: TargetGroups,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DebugSemanticsSchema {
+    pub categorical_vocab: HashMap<String, HashMap<String, u32>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -24,3 +30,5 @@ pub struct TargetGroups {
     pub boolean: Vec<String>,
     pub numeric: Vec<String>,
 }
+
+pub const STATE_TARGET_FEATURES: [&str; 3] = ["current.regime", "current.quality", "cycle.stage"];
