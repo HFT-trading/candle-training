@@ -31,6 +31,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         summary.sequences, summary.sequence_length, summary.numeric_features
     );
     println!(
+        "categorical targets:[{}, {}]",
+        summary.sequences, summary.categorical_targets
+    );
+    println!(
         "boolean targets:    [{}, {}]",
         summary.sequences, summary.boolean_targets
     );

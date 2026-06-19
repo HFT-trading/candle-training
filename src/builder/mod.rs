@@ -25,12 +25,14 @@ impl<'a> TrainingTensorBuilder<'a> {
         let sequence_length = dataset.sequences[0].seq_len;
         let categorical_count = self.schema.model_input.categorical_features.len();
         let numeric_count = self.schema.model_input.numeric_features.len();
+        let categorical_target_count = self.schema.target_groups.categorical.len();
         let boolean_target_count = self.schema.target_groups.boolean.len();
         let numeric_target_count = self.schema.target_groups.numeric.len();
 
         let mut categorical =
             Vec::with_capacity(sequence_count * sequence_length * categorical_count);
         let mut numeric = Vec::with_capacity(sequence_count * sequence_length * numeric_count);
+        let mut categorical_targets = Vec::with_capacity(sequence_count * categorical_target_count);
         let mut boolean_targets = Vec::with_capacity(sequence_count * boolean_target_count);
         let mut numeric_targets = Vec::with_capacity(sequence_count * numeric_target_count);
 
@@ -43,7 +45,12 @@ impl<'a> TrainingTensorBuilder<'a> {
                 });
             }
             self.append_inputs(sequence, &mut categorical, &mut numeric)?;
-            self.append_targets(sequence, &mut boolean_targets, &mut numeric_targets)?;
+            self.append_targets(
+                sequence,
+                &mut categorical_targets,
+                &mut boolean_targets,
+                &mut numeric_targets,
+            )?;
         }
 
         Ok(TrainingTensors {
@@ -60,6 +67,11 @@ impl<'a> TrainingTensorBuilder<'a> {
                 )?,
             },
             targets: TrainingTargets {
+                categorical: Tensor::from_slice(
+                    &categorical_targets,
+                    (sequence_count, categorical_target_count),
+                    device,
+                )?,
                 boolean: Tensor::from_slice(
                     &boolean_targets,
                     (sequence_count, boolean_target_count),
@@ -109,9 +121,38 @@ impl<'a> TrainingTensorBuilder<'a> {
     fn append_targets(
         &self,
         sequence: &MarketSequence,
+        categorical_targets: &mut Vec<u32>,
         boolean_targets: &mut Vec<f32>,
         numeric_targets: &mut Vec<f32>,
     ) -> Result<(), BuildError> {
+        for target in &self.schema.target_groups.categorical {
+            let value =
+                sequence
+                    .future_outcomes
+                    .get(target)
+                    .ok_or_else(|| BuildError::MissingTarget {
+                        sample_id: sequence.sample_id.clone(),
+                        target: target.clone(),
+                    })?;
+            let category = value.as_str().ok_or_else(|| BuildError::InvalidValue {
+                sample_id: sequence.sample_id.clone(),
+                feature: target.clone(),
+                value: value.clone(),
+            })?;
+            let id = self
+                .schema
+                .categorical_vocab
+                .get(target)
+                .and_then(|vocab| vocab.get(category))
+                .copied()
+                .ok_or_else(|| BuildError::UnknownTargetCategory {
+                    sample_id: sequence.sample_id.clone(),
+                    target: target.clone(),
+                    category: category.to_owned(),
+                })?;
+            categorical_targets.push(id);
+        }
+
         for target in &self.schema.target_groups.boolean {
             let value =
                 sequence
@@ -191,6 +232,11 @@ pub enum BuildError {
         sample_id: String,
         target: String,
     },
+    UnknownTargetCategory {
+        sample_id: String,
+        target: String,
+        category: String,
+    },
     InvalidValue {
         sample_id: String,
         feature: String,
@@ -217,5 +263,71 @@ impl Error for BuildError {
             Self::Candle(source) => Some(source),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use candle_core::Device;
+    use serde_json::json;
+
+    use super::TrainingTensorBuilder;
+    use crate::dataset::{FeatureSchema, MarketDataset, MarketSequence};
+
+    #[test]
+    fn categorical_target_is_encoded_as_class_id() {
+        let schema: FeatureSchema = serde_json::from_value(json!({
+            "version": 1,
+            "categorical_vocab": {
+                "phase": { "stable": 1 },
+                "market_outcome": {
+                    "CONTINUATION": 0,
+                    "FAILED": 1,
+                    "NO_MOVE": 2
+                }
+            },
+            "model_input": {
+                "categorical_features": ["phase"],
+                "categorical_unknown_id": 0,
+                "numeric_features": ["strength"]
+            },
+            "target_groups": {
+                "categorical": ["market_outcome"],
+                "boolean": ["valid"],
+                "numeric": ["realized_range_atr"]
+            }
+        }))
+        .unwrap();
+        let sequence: MarketSequence = serde_json::from_value(json!({
+            "sample_id": "sample-1",
+            "source_name": "test",
+            "seq_len": 1,
+            "state_features": [{
+                "snapshot_id": "snapshot-1",
+                "values": { "phase": "stable", "strength": 0.8 }
+            }],
+            "range_telemetry": [{ "snapshot_id": "snapshot-1", "values": {} }],
+            "cycle_context": [{ "snapshot_id": "snapshot-1", "values": {} }],
+            "episode_context": [{ "snapshot_id": "snapshot-1", "values": {} }],
+            "future_outcomes": {
+                "market_outcome": "FAILED",
+                "valid": true,
+                "realized_range_atr": 1.25
+            }
+        }))
+        .unwrap();
+        let dataset = MarketDataset {
+            schema,
+            sequences: vec![sequence],
+        };
+
+        let tensors = TrainingTensorBuilder::new(&dataset.schema)
+            .build(&dataset, &Device::Cpu)
+            .unwrap();
+
+        assert_eq!(
+            tensors.targets.categorical.to_vec2::<u32>().unwrap(),
+            vec![vec![1]]
+        );
     }
 }

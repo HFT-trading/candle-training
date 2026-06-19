@@ -19,6 +19,8 @@ pub struct ModelInputSchema {
 
 #[derive(Debug, Deserialize)]
 pub struct TargetGroups {
+    #[serde(default)]
+    pub categorical: Vec<String>,
     pub boolean: Vec<String>,
     pub numeric: Vec<String>,
 }
