@@ -71,6 +71,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bot-training"
+version = "0.1.0"
+dependencies = [
+ "candle-core",
+ "serde",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "bytemuck"
 version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -136,16 +146,6 @@ dependencies = [
  "objc2-metal",
  "once_cell",
  "thiserror 2.0.18",
- "tracing",
-]
-
-[[package]]
-name = "candle-training"
-version = "0.1.0"
-dependencies = [
- "candle-core",
- "serde",
- "serde_json",
  "tracing",
 ]
 

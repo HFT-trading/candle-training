@@ -3,7 +3,8 @@ mod prediction;
 use candle_core::Tensor;
 
 pub use prediction::{
-    ModelResponse, OutcomeProbabilities, PredictionStatus, RangeEstimate, UnknownReason,
+    HistoricalRangeMetadata, MarketStateAssessment, ModelResponse, MoveOutlook, PredictionStatus,
+    StatePrediction, UnknownReason,
 };
 
 pub struct ModelInputs {

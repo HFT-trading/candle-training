@@ -1,9 +1,9 @@
 use std::error::Error;
 
+use bot_training::builder::TrainingTensorBuilder;
+use bot_training::dataset::load_dataset;
+use bot_training::trainer::TrainingDataSummary;
 use candle_core::Device;
-use candle_training::builder::TrainingTensorBuilder;
-use candle_training::dataset::load_dataset;
-use candle_training::trainer::TrainingDataSummary;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let device = training_device()?;

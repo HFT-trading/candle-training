@@ -15,6 +15,18 @@ The central question is:
 > what state is the process in, how stable is that interpretation, and which
 > terminal outcome is becoming more likely?
 
+The system has two explicit objectives:
+
+1. **Market-state understanding**: identify the current regime, quality, cycle
+   stage, and eventually the stability of that interpretation.
+2. **Move outlook**: estimate how likely the active process is to reach the
+   existing movement and confirmation outcomes.
+
+The first objective explains what the market process currently is. The second
+describes how far that process may still develop. An external strategy may use
+both as evidence for entry or position management, but those actions remain
+outside the model.
+
 ## Business unit: cycle/episode lifecycle
 
 An arbitrary fixed window is not the primary business unit. The primary unit is
@@ -34,6 +46,11 @@ tracked lifecycle.
 
 Touch and hit fields are not isolated trading signals. They describe possible
 terminal events or milestones in the lifecycle.
+
+The upstream parser is the authority for lifecycle boundaries. The model does
+not need to learn the business rules that decide whether a touch, hit, confirm,
+or return ends a cycle. It only needs an ordered feature vector and an explicit
+reset when the parser starts a new cycle.
 
 ## Input semantics
 
@@ -57,21 +74,33 @@ change the model representation.
 
 ## Runtime lifecycle and memory
 
-The embedded service owns the active cycle lifecycle:
+The embedded service and its upstream parser own the active cycle lifecycle:
 
 ```text
-cycle start       -> initialize sequence memory
-new observation   -> update the active sequence representation
-terminal event    -> produce the final response and reset memory
+raw event         -> parser -> market-state feature vector
+feature vector    -> model.step(vector) -> update sequence memory
+terminal event    -> parser -> model.finalize() -> model.reset()
 service restart   -> active memory is lost and starts fresh
 ```
 
-Persistent sequence memory is allowed and likely useful. It may eventually be
-implemented with a recurrent hidden state or another causal sequence encoder.
-The exact encoder architecture is not yet selected.
+Persistent sequence memory is allowed and useful. The V1 architecture should
+use a GRU hidden state because the runtime naturally receives one ordered item
+at a time. A future architecture may replace the GRU, but it must preserve
+causal ordering and explicit lifecycle reset semantics.
 
 Memory must never cross cycle boundaries. If multiple cycles can be active at
 once, memory must be keyed by `cycle_id`.
+
+The model API therefore needs three lifecycle operations:
+
+```text
+step(feature_vector)
+finalize()
+reset()
+```
+
+The parser decides when to call them. The model does not decide when a cycle is
+over.
 
 ## Training formulation
 
@@ -98,6 +127,24 @@ target leakage.
 
 ## Learned outcomes
 
+### Primary state heads
+
+The recurrent representation should receive per-step state supervision from
+the parser's existing debug semantics:
+
+- `current.regime`: `Sideway`, `UpAttempt`, or `DownAttempt`;
+- `current.quality`: `Accepted`, `Broken`, `Choppy`, `Pressured`, `Rejected`,
+  or `Weak`;
+- `cycle.stage`: `Compression`, `PressureBuild`, `EarlyExpansion`, `Expansion`,
+  or `ExtendedExpansion`.
+
+These heads make market-state understanding an explicit training objective
+instead of hoping it emerges from price-oriented future labels. They may later
+be hidden from the public response while still serving as useful auxiliary
+supervision.
+
+### Secondary move-outlook heads
+
 The current dataset exposes five boolean future outcomes:
 
 - `future_reaches_25bps`;
@@ -107,7 +154,8 @@ The current dataset exposes five boolean future outcomes:
 - `future_aligned_confirm`.
 
 These are multi-label outcomes: more than one may be true during a lifecycle.
-The model may learn calibrated probabilities for them.
+The model may learn calibrated probabilities for them. They are secondary
+outlook heads, not a complete definition of market state.
 
 Higher-level interpretations such as `CONTINUATION`, `FAILED`, or `NO_MOVE`
 should initially be derived from the learned outcome probabilities and terminal
@@ -142,6 +190,38 @@ While a cycle is active, the model response should communicate:
 - confidence or stability of that interpretation;
 - calibrated probabilities for learned lifecycle outcomes;
 - optional historical range metadata for comparable states.
+
+The response is divided into two main sections:
+
+```json
+{
+  "market_state": {
+    "observed": {
+      "regime": "UpAttempt",
+      "quality": "Pressured",
+      "stage": "PressureBuild"
+    },
+    "inferred": {
+      "regime": "UpAttempt",
+      "quality": "Weak",
+      "stage": "EarlyExpansion",
+      "confidence": 0.71
+    }
+  },
+  "move_outlook": {
+    "reaches_25bps": 0.72,
+    "reaches_40bps": 0.46,
+    "returns_to_origin": 0.23,
+    "aligned_confirm": 0.61,
+    "counter_confirm": 0.14
+  }
+}
+```
+
+`observed` is supplied by the upstream parser. `inferred` is the model's
+sequence-aware interpretation. Strong disagreement between them is evidence
+for low confidence or abstention, not a reason to silently overwrite either
+value.
 
 The current Rust response contract lives in
 `src/core/prediction.rs`.
@@ -192,11 +272,10 @@ Implemented:
 
 Not implemented:
 
-- lifecycle-aware cycle/episode records;
-- variable-length causal prefix generation;
-- authoritative start and terminal-event rules;
+- a cycle identity or boundary marker exposed to the trainer;
+- causal prefix or recurrent sequence training;
 - cycle-level train/validation/test splitting;
-- sequence encoder architecture;
+- step feature encoder and GRU sequence memory;
 - calibrated outcome heads;
 - stability estimation;
 - conditional range-statistics artifact;
@@ -205,29 +284,47 @@ Not implemented:
 The current length-8 sequences are useful pipeline fixtures, but they do not yet
 fully encode the lifecycle formulation described here.
 
-## Next implementation step
+## V1 architecture
 
-Update the data contract and exporter so that every record has explicit
-lifecycle identity and boundaries:
+The next implementation step is a small recurrent model:
 
 ```text
-cycle_id
-ordered observations
-start condition
-terminal event
-final outcome labels
-duration
-numeric analysis metadata
+categorical state fields -> embeddings ---------+
+                                                +-> step representation
+numeric state fields     -> normalization/MLP --+
+                                                        |
+                                                        v
+                                                   GRU memory
+                                                        +-> regime head
+                                                        +-> quality head
+                                                        +-> cycle-stage head
+                                                        +-> five move-outlook logits
 ```
 
-Before changing the model architecture, define:
+At each time step:
 
-1. what starts a cycle/episode;
-2. which touch/hit/confirm events end it;
-3. whether milestones can occur before the final terminal event;
-4. how cycles that never reach a terminal event are closed;
-5. the precise relationship between a cycle and an episode.
+```text
+h_t = GRU(step_vector_t, h_(t-1))
+```
 
-Once those semantics are stable, the existing tensor pipeline can be adapted to
-variable-length causal sequences and the encoder can be selected from the data
-requirements rather than guessed in advance.
+The three state heads use per-step categorical supervision. The five outcome
+logits use a multi-label objective because the existing boolean outcomes can
+overlap. Numeric future outcomes do not receive a regression head or contribute
+to training loss.
+
+Implementation order:
+
+1. load `current.regime`, `current.quality`, and `cycle.stage` as per-step state
+   targets from `debug_semantics`;
+2. encode the four categorical input fields with embeddings;
+3. normalize and project the numeric market-state fields;
+4. concatenate them into one step representation;
+5. add GRU sequence memory;
+6. add the three state heads and five-logit move-outlook head;
+7. expose `step`, `finalize`, and `reset` for embedded inference;
+8. calibrate probabilities and abstention thresholds on held-out cycles.
+
+The trainer still needs a cycle identifier or boundary marker so recurrent
+memory can be reset correctly and every cycle stays in exactly one dataset
+split. It does not need the model to reproduce the parser's terminal-event
+decision table.
