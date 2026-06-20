@@ -1,0 +1,555 @@
+{
+  "sample_id": "sequence#005305",
+  "source": "logs/data-test6.log",
+  "source_name": "data-test6.log",
+  "start_snapshot": "snapshot#005340",
+  "end_snapshot": "snapshot#005347",
+  "start_time": "13:43:39->13:46:04",
+  "end_time": "13:58:52->14:00:00",
+  "source_start_index": 720,
+  "source_end_index": 727,
+  "seq_len": 8,
+  "state_features": [
+    {
+      "snapshot_id": "snapshot#005340",
+      "snapshot_time": "13:43:39->13:46:04",
+      "values": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.45
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005341",
+      "snapshot_time": "13:46:44->13:48:32",
+      "values": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.56
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005342",
+      "snapshot_time": "13:53:12->13:54:18",
+      "values": {
+        "current.direction_hint": "AbsorbUp",
+        "current.vector_hint": "NeutralVector",
+        "current.bias_hint": "AbsorbUp",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.45
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005343",
+      "snapshot_time": "13:54:23->13:54:49",
+      "values": {
+        "current.direction_hint": "AbsorbUp",
+        "current.vector_hint": "UpVector",
+        "current.bias_hint": "AbsorbUp",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.45
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005344",
+      "snapshot_time": "13:55:23->13:55:59",
+      "values": {
+        "current.direction_hint": "Conflict",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "Conflict",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.45
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005345",
+      "snapshot_time": "13:56:20->13:57:24",
+      "values": {
+        "current.direction_hint": "AbsorbUp",
+        "current.vector_hint": "UpVector",
+        "current.bias_hint": "AbsorbUp",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.48
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005346",
+      "snapshot_time": "13:57:29->13:58:47",
+      "values": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.5
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005347",
+      "snapshot_time": "13:58:52->14:00:00",
+      "values": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "UpVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.56
+      }
+    }
+  ],
+  "range_telemetry": [
+    {
+      "snapshot_id": "snapshot#005340",
+      "snapshot_time": "13:43:39->13:46:04",
+      "values": {
+        "current.net_bps": -1.4,
+        "current.range_bps": 2.81,
+        "current.close_position_in_range": 0.0,
+        "current.favorable_bps": 1.4,
+        "current.adverse_bps": 4.21,
+        "current.opposite_bps": 1.4,
+        "current.retention": 0.25,
+        "current.duration_sec": 151.2,
+        "current.vector_dominance": 0.67,
+        "current.vector_flips": 1.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 0.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005341",
+      "snapshot_time": "13:46:44->13:48:32",
+      "values": {
+        "current.net_bps": 2.81,
+        "current.range_bps": 7.02,
+        "current.close_position_in_range": 0.8,
+        "current.favorable_bps": 5.61,
+        "current.adverse_bps": 8.43,
+        "current.opposite_bps": 7.02,
+        "current.retention": 0.0,
+        "current.duration_sec": 147.59,
+        "current.vector_dominance": 0.75,
+        "current.vector_flips": 2.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 2.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005342",
+      "snapshot_time": "13:53:12->13:54:18",
+      "values": {
+        "current.net_bps": 0.0,
+        "current.range_bps": 1.4,
+        "current.close_position_in_range": 1.0,
+        "current.favorable_bps": 2.81,
+        "current.adverse_bps": 2.81,
+        "current.opposite_bps": 1.4,
+        "current.retention": 0.25,
+        "current.duration_sec": 73.64,
+        "current.vector_dominance": 0.5,
+        "current.vector_flips": 1.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 0.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005343",
+      "snapshot_time": "13:54:23->13:54:49",
+      "values": {
+        "current.net_bps": 1.4,
+        "current.range_bps": 1.4,
+        "current.close_position_in_range": 1.0,
+        "current.favorable_bps": 0.0,
+        "current.adverse_bps": 1.4,
+        "current.opposite_bps": 1.4,
+        "current.retention": 0.0,
+        "current.duration_sec": 30.97,
+        "current.vector_dominance": 1.0,
+        "current.vector_flips": 0.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 0.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005344",
+      "snapshot_time": "13:55:23->13:55:59",
+      "values": {
+        "current.net_bps": 0.0,
+        "current.range_bps": 2.81,
+        "current.close_position_in_range": 0.5,
+        "current.favorable_bps": 1.4,
+        "current.adverse_bps": 2.81,
+        "current.opposite_bps": 2.81,
+        "current.retention": 0.25,
+        "current.duration_sec": 70.01,
+        "current.vector_dominance": 0.75,
+        "current.vector_flips": 2.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 0.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005345",
+      "snapshot_time": "13:56:20->13:57:24",
+      "values": {
+        "current.net_bps": 7.02,
+        "current.range_bps": 7.02,
+        "current.close_position_in_range": 1.0,
+        "current.favorable_bps": 0.0,
+        "current.adverse_bps": 5.61,
+        "current.opposite_bps": 4.21,
+        "current.retention": 0.0,
+        "current.duration_sec": 83.67,
+        "current.vector_dominance": 1.0,
+        "current.vector_flips": 0.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005346",
+      "snapshot_time": "13:57:29->13:58:47",
+      "values": {
+        "current.net_bps": -1.4,
+        "current.range_bps": 4.21,
+        "current.close_position_in_range": 0.0,
+        "current.favorable_bps": 2.8,
+        "current.adverse_bps": 4.21,
+        "current.opposite_bps": 4.21,
+        "current.retention": 0.25,
+        "current.duration_sec": 83.03,
+        "current.vector_dominance": 0.75,
+        "current.vector_flips": 2.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005347",
+      "snapshot_time": "13:58:52->14:00:00",
+      "values": {
+        "current.net_bps": -2.8,
+        "current.range_bps": 4.21,
+        "current.close_position_in_range": 0.0,
+        "current.favorable_bps": 5.61,
+        "current.adverse_bps": 8.41,
+        "current.opposite_bps": 7.01,
+        "current.retention": 0.5,
+        "current.duration_sec": 73.07,
+        "current.vector_dominance": 0.5,
+        "current.vector_flips": 3.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 2.0
+      }
+    }
+  ],
+  "cycle_context": [
+    {
+      "snapshot_id": "snapshot#005340",
+      "snapshot_time": "13:43:39->13:46:04",
+      "values": {
+        "cycle.distance_from_origin_bps": 11.24,
+        "cycle.blocks_from_origin": 8.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005341",
+      "snapshot_time": "13:46:44->13:48:32",
+      "values": {
+        "cycle.distance_from_origin_bps": 9.83,
+        "cycle.blocks_from_origin": 9.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005342",
+      "snapshot_time": "13:53:12->13:54:18",
+      "values": {
+        "cycle.distance_from_origin_bps": 0.0,
+        "cycle.blocks_from_origin": 0.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005343",
+      "snapshot_time": "13:54:23->13:54:49",
+      "values": {
+        "cycle.distance_from_origin_bps": 2.81,
+        "cycle.blocks_from_origin": 1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005344",
+      "snapshot_time": "13:55:23->13:55:59",
+      "values": {
+        "cycle.distance_from_origin_bps": 1.4,
+        "cycle.blocks_from_origin": 2.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005345",
+      "snapshot_time": "13:56:20->13:57:24",
+      "values": {
+        "cycle.distance_from_origin_bps": 8.42,
+        "cycle.blocks_from_origin": 3.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005346",
+      "snapshot_time": "13:57:29->13:58:47",
+      "values": {
+        "cycle.distance_from_origin_bps": 5.61,
+        "cycle.blocks_from_origin": 4.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005347",
+      "snapshot_time": "13:58:52->14:00:00",
+      "values": {
+        "cycle.distance_from_origin_bps": 5.61,
+        "cycle.blocks_from_origin": 5.0
+      }
+    }
+  ],
+  "episode_context": [
+    {
+      "snapshot_id": "snapshot#005340",
+      "snapshot_time": "13:43:39->13:46:04",
+      "values": {
+        "episode.accepted_seen": true,
+        "episode.blocks_since_confirm": 1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005341",
+      "snapshot_time": "13:46:44->13:48:32",
+      "values": {
+        "episode.accepted_seen": true,
+        "episode.blocks_since_confirm": 2.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005342",
+      "snapshot_time": "13:53:12->13:54:18",
+      "values": {
+        "episode.accepted_seen": false,
+        "episode.blocks_since_confirm": -1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005343",
+      "snapshot_time": "13:54:23->13:54:49",
+      "values": {
+        "episode.accepted_seen": false,
+        "episode.blocks_since_confirm": -1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005344",
+      "snapshot_time": "13:55:23->13:55:59",
+      "values": {
+        "episode.accepted_seen": false,
+        "episode.blocks_since_confirm": -1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005345",
+      "snapshot_time": "13:56:20->13:57:24",
+      "values": {
+        "episode.accepted_seen": false,
+        "episode.blocks_since_confirm": -1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005346",
+      "snapshot_time": "13:57:29->13:58:47",
+      "values": {
+        "episode.accepted_seen": false,
+        "episode.blocks_since_confirm": -1.0
+      }
+    },
+    {
+      "snapshot_id": "snapshot#005347",
+      "snapshot_time": "13:58:52->14:00:00",
+      "values": {
+        "episode.accepted_seen": false,
+        "episode.blocks_since_confirm": -1.0
+      }
+    }
+  ],
+  "future_outcomes": {
+    "future_reaches_25bps": false,
+    "future_reaches_40bps": false,
+    "future_returns_to_origin": true,
+    "future_counter_confirm": false,
+    "future_aligned_confirm": false,
+    "future_max_extension_bps": 1.4,
+    "future_max_drawback_bps": 25.26
+  },
+  "debug_semantics": {
+    "per_step": [
+      {
+        "snapshot_id": "snapshot#005340",
+        "snapshot_time": "13:43:39->13:46:04",
+        "values": {
+          "current.side": "Long",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Down",
+          "cycle.trend_from_origin": "Up",
+          "cycle.stage": "PressureBuild",
+          "episode.last_confirm_event": "UpAccepted",
+          "episode.last_confirm_direction": "Up",
+          "episode.last_confirm_relation": "ConfirmAfterFlatBuild",
+          "future.final_cycle_type": "FlatThenUpConfirm",
+          "future.final_primary_direction": "Up",
+          "future.final_primary_move_bps": 12.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005341",
+        "snapshot_time": "13:46:44->13:48:32",
+        "values": {
+          "current.side": "Long",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Down",
+          "cycle.trend_from_origin": "Up",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "UpAccepted",
+          "episode.last_confirm_direction": "Up",
+          "episode.last_confirm_relation": "ConfirmAfterFlatBuild",
+          "future.final_cycle_type": "FlatThenUpConfirm",
+          "future.final_primary_direction": "Up",
+          "future.final_primary_move_bps": 12.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005342",
+        "snapshot_time": "13:53:12->13:54:18",
+        "values": {
+          "current.side": "Short",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Down",
+          "cycle.trend_from_origin": "Flat",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "None",
+          "episode.last_confirm_direction": "None",
+          "episode.last_confirm_relation": "None",
+          "future.final_cycle_type": "DownExpansionNoConfirm",
+          "future.final_primary_direction": "Down",
+          "future.final_primary_move_bps": 19.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005343",
+        "snapshot_time": "13:54:23->13:54:49",
+        "values": {
+          "current.side": "Short",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Up",
+          "cycle.trend_from_origin": "Flat",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "None",
+          "episode.last_confirm_direction": "None",
+          "episode.last_confirm_relation": "None",
+          "future.final_cycle_type": "DownExpansionNoConfirm",
+          "future.final_primary_direction": "Down",
+          "future.final_primary_move_bps": 19.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005344",
+        "snapshot_time": "13:55:23->13:55:59",
+        "values": {
+          "current.side": "Long",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Down",
+          "cycle.trend_from_origin": "Flat",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "None",
+          "episode.last_confirm_direction": "None",
+          "episode.last_confirm_relation": "None",
+          "future.final_cycle_type": "DownExpansionNoConfirm",
+          "future.final_primary_direction": "Down",
+          "future.final_primary_move_bps": 19.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005345",
+        "snapshot_time": "13:56:20->13:57:24",
+        "values": {
+          "current.side": "Short",
+          "current.regime": "UpAttempt",
+          "current.quality": "Weak",
+          "current.dominant_vector": "Up",
+          "cycle.trend_from_origin": "Up",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "None",
+          "episode.last_confirm_direction": "None",
+          "episode.last_confirm_relation": "None",
+          "future.final_cycle_type": "DownExpansionNoConfirm",
+          "future.final_primary_direction": "Down",
+          "future.final_primary_move_bps": 19.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005346",
+        "snapshot_time": "13:57:29->13:58:47",
+        "values": {
+          "current.side": "Long",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Down",
+          "cycle.trend_from_origin": "Up",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "None",
+          "episode.last_confirm_direction": "None",
+          "episode.last_confirm_relation": "None",
+          "future.final_cycle_type": "DownExpansionNoConfirm",
+          "future.final_primary_direction": "Down",
+          "future.final_primary_move_bps": 19.64
+        }
+      },
+      {
+        "snapshot_id": "snapshot#005347",
+        "snapshot_time": "13:58:52->14:00:00",
+        "values": {
+          "current.side": "Long",
+          "current.regime": "Sideway",
+          "current.quality": "Choppy",
+          "current.dominant_vector": "Up",
+          "cycle.trend_from_origin": "Up",
+          "cycle.stage": "Compression",
+          "episode.last_confirm_event": "None",
+          "episode.last_confirm_direction": "None",
+          "episode.last_confirm_relation": "None",
+          "future.final_cycle_type": "DownExpansionNoConfirm",
+          "future.final_primary_direction": "Down",
+          "future.final_primary_move_bps": 19.64
+        }
+      }
+    ],
+    "end_snapshot": {
+      "snapshot_id": "snapshot#005347",
+      "snapshot_time": "13:58:52->14:00:00",
+      "values": {
+        "current.side": "Long",
+        "current.regime": "Sideway",
+        "current.quality": "Choppy",
+        "current.dominant_vector": "Up",
+        "cycle.trend_from_origin": "Up",
+        "cycle.stage": "Compression",
+        "episode.last_confirm_event": "None",
+        "episode.last_confirm_direction": "None",
+        "episode.last_confirm_relation": "None",
+        "future.final_cycle_type": "DownExpansionNoConfirm",
+        "future.final_primary_direction": "Down",
+        "future.final_primary_move_bps": 19.64
+      }
+    }
+  }
+}

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 
@@ -81,13 +80,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let report = train(&model, &variables, &tensors, &split, &config.training)?;
     fs::create_dir_all("models")?;
     variables.save("models/model.safetensors")?;
-    candle_core::safetensors::save(
-        &HashMap::from([
-            ("mean", report.normalizer.mean.clone()),
-            ("std", report.normalizer.std.clone()),
-        ]),
-        "models/numeric-normalizer.safetensors",
-    )?;
+    report
+        .normalizer
+        .save("models/numeric-normalizer.safetensors")?;
     info!(
         epochs = report.epochs.len(),
         numeric_features = report.normalizer.mean.elem_count(),

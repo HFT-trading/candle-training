@@ -4,4 +4,5 @@ pub mod core;
 pub mod dataset;
 pub mod logging;
 pub mod model;
+pub mod runtime;
 pub mod trainer;

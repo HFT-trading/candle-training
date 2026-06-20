@@ -10,7 +10,7 @@ use tracing::info;
 use crate::config::TrainingConfig;
 use crate::core::{ModelInputs, TrainingTensors};
 use crate::dataset::MarketDataset;
-use crate::model::{MarketStateModel, ModelOutput};
+use crate::model::{MarketStateModel, ModelOutput, NumericNormalizer};
 
 pub struct TrainingDataSummary {
     pub sequences: usize,
@@ -86,27 +86,6 @@ impl DataSplit {
             validation_indices,
             validation_source,
         })
-    }
-}
-
-#[derive(Debug)]
-pub struct NumericNormalizer {
-    pub mean: Tensor,
-    pub std: Tensor,
-}
-
-impl NumericNormalizer {
-    pub fn fit(numeric: &Tensor, train_indices: &[u32]) -> Result<Self> {
-        let train_numeric = select_rows(numeric, train_indices)?;
-        let mean = train_numeric.mean_keepdim((0, 1))?;
-        let centered = train_numeric.broadcast_sub(&mean)?;
-        let variance = centered.sqr()?.mean_keepdim((0, 1))?;
-        let std = (variance + 1e-6)?.sqrt()?;
-        Ok(Self { mean, std })
-    }
-
-    pub fn apply(&self, numeric: &Tensor) -> Result<Tensor> {
-        numeric.broadcast_sub(&self.mean)?.broadcast_div(&self.std)
     }
 }
 

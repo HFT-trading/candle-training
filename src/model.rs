@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::path::Path;
+
 use candle_core::{Result, Tensor};
 use candle_nn::{
     Embedding, GRU, GRUConfig, Linear, Module, RNN, VarBuilder, embedding, gru, linear,
@@ -31,6 +34,46 @@ pub struct StateHeadLogits {
 pub struct ModelOutput {
     pub state: StateHeadLogits,
     pub move_outlook: Tensor,
+}
+
+#[derive(Debug)]
+pub struct NumericNormalizer {
+    pub mean: Tensor,
+    pub std: Tensor,
+}
+
+impl NumericNormalizer {
+    pub fn fit(numeric: &Tensor, train_indices: &[u32]) -> Result<Self> {
+        let ids = Tensor::from_slice(train_indices, train_indices.len(), numeric.device())?;
+        let train_numeric = numeric.index_select(&ids, 0)?;
+        let mean = train_numeric.mean_keepdim((0, 1))?;
+        let centered = train_numeric.broadcast_sub(&mean)?;
+        let variance = centered.sqr()?.mean_keepdim((0, 1))?;
+        let std = (variance + 1e-6)?.sqrt()?;
+        Ok(Self { mean, std })
+    }
+
+    pub fn load(path: impl AsRef<Path>, device: &candle_core::Device) -> Result<Self> {
+        let mut tensors = candle_core::safetensors::load(path, device)?;
+        let Some(mean) = tensors.remove("mean") else {
+            candle_core::bail!("numeric normalizer is missing mean")
+        };
+        let Some(std) = tensors.remove("std") else {
+            candle_core::bail!("numeric normalizer is missing std")
+        };
+        Ok(Self { mean, std })
+    }
+
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+        candle_core::safetensors::save(
+            &HashMap::from([("mean", self.mean.clone()), ("std", self.std.clone())]),
+            path,
+        )
+    }
+
+    pub fn apply(&self, numeric: &Tensor) -> Result<Tensor> {
+        numeric.broadcast_sub(&self.mean)?.broadcast_div(&self.std)
+    }
 }
 
 impl ModelOutput {

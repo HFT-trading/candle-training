@@ -318,3 +318,19 @@ The trainer still needs a cycle identifier or boundary marker so recurrent
 memory can be reset correctly and every cycle stays in exactly one dataset
 split. It does not need the model to reproduce the parser's terminal-event
 decision table.
+
+## Public runtime and CLI smoke test
+
+`ModelRuntime` is the public checkpoint consumer. It loads the trained model and
+numeric normalizer, applies the same preprocessing used during training, and
+returns `ModelOutput` from `forward()`.
+
+The `inspect` binary exercises this path end to end on one dataset sequence:
+
+```bash
+RUST_LOG=debug cargo run --bin inspect -- 0
+```
+
+The final argument is the zero-based sequence index. The command logs the
+parser-observed state, raw output tensor shapes, state probabilities, and five
+move-outlook probabilities. It is a runtime smoke test, not a quality claim.
