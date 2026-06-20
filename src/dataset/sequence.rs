@@ -22,6 +22,8 @@ pub struct SequenceDebugSemantics {
 #[derive(Debug, Deserialize)]
 pub struct SequenceStep {
     pub snapshot_id: String,
+    #[serde(default)]
+    pub snapshot_time: Option<String>,
     pub values: Map<String, Value>,
 }
 

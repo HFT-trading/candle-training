@@ -334,3 +334,5 @@ RUST_LOG=debug cargo run --bin inspect -- 0
 The final argument is the zero-based sequence index. The command logs the
 parser-observed state, raw output tensor shapes, state probabilities, and five
 move-outlook probabilities. It is a runtime smoke test, not a quality claim.
+See [inspect-output.md](inspect-output.md) for the field-by-field output
+reference.
