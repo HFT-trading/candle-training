@@ -135,6 +135,7 @@ pub fn train(
             &normalizer,
             &train_indices,
             config,
+            Some(epoch),
             Some(&mut optimizer),
         )?;
         let validation_metrics = run_epoch(
@@ -143,6 +144,7 @@ pub fn train(
             &normalizer,
             &split.validation_indices,
             config,
+            None,
             None,
         )?;
 
@@ -168,22 +170,37 @@ fn run_epoch(
     normalizer: &NumericNormalizer,
     indices: &[u32],
     config: &TrainingConfig,
+    training_epoch: Option<usize>,
     mut optimizer: Option<&mut AdamW>,
 ) -> Result<EpochMetrics> {
     let mut accumulator = MetricsAccumulator::default();
+    let max_sequence_length = tensors.inputs.numeric.dim(1)?;
+    let mut length_groups = BTreeMap::<usize, Vec<u32>>::new();
+    for index in indices {
+        let sequence_length = match training_epoch {
+            Some(epoch) => 1 + ((*index as usize + epoch - 1) % max_sequence_length),
+            None => max_sequence_length,
+        };
+        length_groups
+            .entry(sequence_length)
+            .or_default()
+            .push(*index);
+    }
 
-    for batch_indices in indices.chunks(config.batch_size) {
-        let batch = select_batch(tensors, normalizer, batch_indices)?;
-        let output = model.forward(&batch.inputs)?;
-        let losses = compute_losses(
-            &output,
-            &batch.state_targets,
-            &batch.outlook_targets,
-            config,
-        )?;
-        accumulator.add(&losses, batch_indices.len())?;
-        if let Some(optimizer) = optimizer.as_deref_mut() {
-            optimizer.backward_step(&losses.total)?;
+    for (sequence_length, group_indices) in length_groups {
+        for batch_indices in group_indices.chunks(config.batch_size) {
+            let batch = select_batch(tensors, normalizer, batch_indices, sequence_length)?;
+            let output = model.forward(&batch.inputs)?;
+            let losses = compute_losses(
+                &output,
+                &batch.state_targets,
+                &batch.outlook_targets,
+                config,
+            )?;
+            accumulator.add(&losses, batch_indices.len())?;
+            if let Some(optimizer) = optimizer.as_deref_mut() {
+                optimizer.backward_step(&losses.total)?;
+            }
         }
     }
 
@@ -200,14 +217,25 @@ fn select_batch(
     tensors: &TrainingTensors,
     normalizer: &NumericNormalizer,
     indices: &[u32],
+    sequence_length: usize,
 ) -> Result<TrainingBatch> {
-    let numeric = select_rows(&tensors.inputs.numeric, indices)?;
+    let full_sequence_length = tensors.inputs.numeric.dim(1)?;
+    let start = full_sequence_length - sequence_length;
+    let categorical =
+        select_rows(&tensors.inputs.categorical, indices)?.narrow(1, start, sequence_length)?;
+    let numeric =
+        select_rows(&tensors.inputs.numeric, indices)?.narrow(1, start, sequence_length)?;
+    let state_targets = select_rows(&tensors.targets.state_categorical, indices)?.narrow(
+        1,
+        start,
+        sequence_length,
+    )?;
     Ok(TrainingBatch {
         inputs: ModelInputs {
-            categorical: select_rows(&tensors.inputs.categorical, indices)?,
+            categorical,
             numeric: normalizer.apply(&numeric)?,
         },
-        state_targets: select_rows(&tensors.targets.state_categorical, indices)?,
+        state_targets,
         outlook_targets: select_rows(&tensors.targets.boolean, indices)?,
     })
 }

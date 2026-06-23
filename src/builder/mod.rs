@@ -16,6 +16,47 @@ impl<'a> TrainingTensorBuilder<'a> {
         Self { schema }
     }
 
+    pub fn build_inputs(
+        &self,
+        sequences: &[MarketSequence],
+        device: &Device,
+    ) -> Result<ModelInputs, BuildError> {
+        let Some(first) = sequences.first() else {
+            return Err(BuildError::EmptySequences);
+        };
+        let sequence_count = sequences.len();
+        let sequence_length = first.seq_len;
+        let categorical_count = self.schema.model_input.categorical_features.len();
+        let numeric_count = self.schema.model_input.numeric_features.len();
+        let mut categorical =
+            Vec::with_capacity(sequence_count * sequence_length * categorical_count);
+        let mut numeric = Vec::with_capacity(sequence_count * sequence_length * numeric_count);
+
+        for sequence in sequences {
+            if sequence.seq_len != sequence_length {
+                return Err(BuildError::SequenceLengthMismatch {
+                    sample_id: sequence.sample_id.clone(),
+                    expected: sequence_length,
+                    actual: sequence.seq_len,
+                });
+            }
+            self.append_inputs(sequence, &mut categorical, &mut numeric)?;
+        }
+
+        Ok(ModelInputs {
+            categorical: Tensor::from_slice(
+                &categorical,
+                (sequence_count, sequence_length, categorical_count),
+                device,
+            )?,
+            numeric: Tensor::from_slice(
+                &numeric,
+                (sequence_count, sequence_length, numeric_count),
+                device,
+            )?,
+        })
+    }
+
     pub fn build(
         &self,
         dataset: &MarketDataset,
@@ -271,6 +312,7 @@ fn numeric_value(
 
 #[derive(Debug)]
 pub enum BuildError {
+    EmptySequences,
     SequenceLengthMismatch {
         sample_id: String,
         expected: usize,

@@ -11,6 +11,7 @@ pub struct AppConfig {
 
 #[derive(Debug, Deserialize)]
 pub struct ModelConfig {
+    pub max_sequence_steps: usize,
     pub categorical_embedding_dim: usize,
     pub numeric_projection_dim: usize,
     pub step_representation_dim: usize,

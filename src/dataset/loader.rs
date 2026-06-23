@@ -4,7 +4,35 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
-use super::{MarketDataset, MarketSequence};
+use super::{FeatureSchema, MarketDataset, MarketSequence};
+
+pub fn load_schema(path: impl AsRef<Path>) -> Result<FeatureSchema, DatasetError> {
+    let path = path.as_ref();
+    let file = File::open(path).map_err(|source| DatasetError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    serde_json::from_reader(file).map_err(|source| DatasetError::Json {
+        path: path.to_path_buf(),
+        line: None,
+        source,
+    })
+}
+
+pub fn load_sequence_json(path: impl AsRef<Path>) -> Result<MarketSequence, DatasetError> {
+    let path = path.as_ref();
+    let file = File::open(path).map_err(|source| DatasetError::Io {
+        path: path.to_path_buf(),
+        source,
+    })?;
+    let sequence = serde_json::from_reader(file).map_err(|source| DatasetError::Json {
+        path: path.to_path_buf(),
+        line: None,
+        source,
+    })?;
+    validate_sequence(&sequence, 1)?;
+    Ok(sequence)
+}
 
 pub fn load_dataset(
     schema_path: impl AsRef<Path>,
@@ -13,15 +41,7 @@ pub fn load_dataset(
     let schema_path = schema_path.as_ref();
     let sequences_path = sequences_path.as_ref();
 
-    let schema_file = File::open(schema_path).map_err(|source| DatasetError::Io {
-        path: schema_path.to_path_buf(),
-        source,
-    })?;
-    let schema = serde_json::from_reader(schema_file).map_err(|source| DatasetError::Json {
-        path: schema_path.to_path_buf(),
-        line: None,
-        source,
-    })?;
+    let schema = load_schema(schema_path)?;
 
     let sequences_file = File::open(sequences_path).map_err(|source| DatasetError::Io {
         path: sequences_path.to_path_buf(),
@@ -57,7 +77,6 @@ fn validate_sequence(sequence: &MarketSequence, line: usize) -> Result<(), Datas
         sequence.range_telemetry.len(),
         sequence.cycle_context.len(),
         sequence.episode_context.len(),
-        sequence.debug_semantics.per_step.len(),
     ];
     if group_lengths
         .iter()
@@ -68,6 +87,17 @@ fn validate_sequence(sequence: &MarketSequence, line: usize) -> Result<(), Datas
             sample_id: sequence.sample_id.clone(),
             message: format!(
                 "seq_len={} but group lengths are {group_lengths:?}",
+                sequence.seq_len
+            ),
+        });
+    }
+    let debug_length = sequence.debug_semantics.per_step.len();
+    if debug_length != 0 && debug_length != sequence.seq_len {
+        return Err(DatasetError::InvalidSequence {
+            line,
+            sample_id: sequence.sample_id.clone(),
+            message: format!(
+                "seq_len={} but debug semantics length is {debug_length}",
                 sequence.seq_len
             ),
         });

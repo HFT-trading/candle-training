@@ -1,0 +1,101 @@
+{
+  "cycle_id": "example-cycle",
+  "steps": [
+    {
+      "step_id": "step-1",
+      "state": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.49
+      },
+      "range": {
+        "current.net_bps": -3.24,
+        "current.range_bps": 3.24,
+        "current.close_position_in_range": 0.0,
+        "current.favorable_bps": 4.86,
+        "current.adverse_bps": 3.24,
+        "current.opposite_bps": 1.62,
+        "current.retention": 0.0,
+        "current.duration_sec": 30.83,
+        "current.vector_dominance": 1.0,
+        "current.vector_flips": 0.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 1.0
+      }
+    },
+    {
+      "step_id": "step-2",
+      "state": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "FailedContinuation",
+        "current.confidence": 0.67
+      },
+      "range": {
+        "current.net_bps": 4.86,
+        "current.range_bps": 12.97,
+        "current.close_position_in_range": 0.88,
+        "current.favorable_bps": 6.49,
+        "current.adverse_bps": 19.47,
+        "current.opposite_bps": 12.98,
+        "current.retention": 0.5,
+        "current.duration_sec": 204.23,
+        "current.vector_dominance": 0.75,
+        "current.vector_flips": 2.0,
+        "current.accepted_count": 1.0,
+        "current.rejected_count": 2.0
+      }
+    },
+    {
+      "step_id": "step-3",
+      "state": {
+        "current.direction_hint": "AbsorbUp",
+        "current.vector_hint": "UpVector",
+        "current.bias_hint": "AbsorbUp",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.51
+      },
+      "range": {
+        "current.net_bps": 12.96,
+        "current.range_bps": 12.96,
+        "current.close_position_in_range": 1.0,
+        "current.favorable_bps": 1.62,
+        "current.adverse_bps": 19.44,
+        "current.opposite_bps": 9.72,
+        "current.retention": 0.25,
+        "current.duration_sec": 119.45,
+        "current.vector_dominance": 1.0,
+        "current.vector_flips": 0.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 1.0
+      }
+    },
+    {
+      "step_id": "step-4",
+      "state": {
+        "current.direction_hint": "AbsorbDown",
+        "current.vector_hint": "DownVector",
+        "current.bias_hint": "AbsorbDown",
+        "current.quality_hint": "Noise",
+        "current.confidence": 0.51
+      },
+      "range": {
+        "current.net_bps": -3.24,
+        "current.range_bps": 4.86,
+        "current.close_position_in_range": 0.0,
+        "current.favorable_bps": 1.62,
+        "current.adverse_bps": 9.71,
+        "current.opposite_bps": 9.71,
+        "current.retention": 0.25,
+        "current.duration_sec": 71.87,
+        "current.vector_dominance": 0.75,
+        "current.vector_flips": 2.0,
+        "current.accepted_count": 0.0,
+        "current.rejected_count": 1.0
+      }
+    }
+  ]
+}

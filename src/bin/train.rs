@@ -95,17 +95,17 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn training_device() -> candle_core::Result<Device> {
-    if std::env::var("TRAIN_DEVICE").as_deref() == Ok("cpu") {
-        return Ok(Device::Cpu);
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        Device::metal_if_available(0)
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        Ok(Device::Cpu)
+    match std::env::var("TRAIN_DEVICE").as_deref() {
+        Ok("cpu") | Err(_) => Ok(Device::Cpu),
+        #[cfg(target_os = "macos")]
+        Ok("metal") => Device::new_metal(0),
+        Ok(device) => candle_core::bail!(
+            "unsupported TRAIN_DEVICE={device}; use cpu{}",
+            if cfg!(target_os = "macos") {
+                " or metal"
+            } else {
+                ""
+            }
+        ),
     }
 }

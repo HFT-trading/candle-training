@@ -54,16 +54,21 @@ reset when the parser starts a new cycle.
 
 ## Input semantics
 
-The service receives one market-state snapshot at a time, in chronological
-order. Each observation belongs to one active cycle/episode.
+The model has one input contract: a chronological array containing 1 through 8
+market steps. Each step contains only the data available in realtime:
 
-Model inputs describe market state rather than absolute price. The current V5
-schema groups them as:
+```text
+step = state + range
+sequence = [step_1, ..., step_N], where 1 <= N <= 8
+```
 
-- compact categorical state hints;
-- range telemetry;
-- cycle context;
-- episode context.
+The test CLI supplies that array directly. The embedded service receives one
+step at a time, retains the newest eight steps for each `cycle_id`, and passes
+the resulting array to the same model API. Therefore testing and realtime do
+not create two different model behaviors.
+
+The model does not require `cycle_context` or `episode_context` at inference.
+Lifecycle identity and boundaries are service concerns, not learned features.
 
 Normalized price-derived measurements such as basis-point movement, range,
 retention, and distance from origin may be inputs because they describe the
@@ -77,26 +82,27 @@ change the model representation.
 The embedded service and its upstream parser own the active cycle lifecycle:
 
 ```text
-raw event         -> parser -> market-state feature vector
-feature vector    -> model.step(vector) -> update sequence memory
-terminal event    -> parser -> model.finalize() -> model.reset()
-service restart   -> active memory is lost and starts fresh
+raw event      -> parser -> { state, range }
+parsed step    -> service buffer[cycle_id] -> model.predict(steps)
+terminal event -> service.end_cycle(cycle_id) -> discard buffer
+restart        -> all in-memory cycle buffers start empty
 ```
 
-Persistent sequence memory is allowed and useful. The V1 architecture should
-use a GRU hidden state because the runtime naturally receives one ordered item
-at a time. A future architecture may replace the GRU, but it must preserve
-causal ordering and explicit lifecycle reset semantics.
+The service buffer is explicit RAM state. The GRU builds its learned sequence
+memory again from the buffered array on each prediction. This keeps the model
+API pure and makes a 1–8 step testing request identical to realtime inference.
+A future optimized path may cache hidden state, but it must preserve the same
+result and lifecycle reset semantics.
 
 Memory must never cross cycle boundaries. If multiple cycles can be active at
 once, memory must be keyed by `cycle_id`.
 
-The model API therefore needs three lifecycle operations:
+The service API exposes three lifecycle operations:
 
 ```text
-step(feature_vector)
-finalize()
-reset()
+start_cycle(cycle_id)
+push_step(cycle_id, step) -> prediction
+end_cycle(cycle_id)
 ```
 
 The parser decides when to call them. The model does not decide when a cycle is
@@ -107,19 +113,21 @@ over.
 Training should teach the model how its interpretation evolves throughout a
 cycle, not only how to classify the final observation.
 
-For a cycle containing ordered observations `x1..xT`, training examples are
-causal prefixes:
+For a training sequence containing ordered observations `x1..xT`, the trainer
+uses different causal suffix lengths ending at the same labeled endpoint:
 
 ```text
-[x1]             -> final lifecycle outcome
-[x1, x2]         -> final lifecycle outcome
-[x1, x2, x3]     -> final lifecycle outcome
+[xT]
+[x(T-1), xT]
+[x(T-2), x(T-1), xT]
 ...
-[x1, ..., xT]    -> observed terminal outcome
+[x(T-7), ..., xT]
 ```
 
-This formulation allows early prefixes to remain uncertain and later prefixes
-to become more stable as evidence accumulates.
+This teaches one checkpoint to accept every configured length from 1 through
+8. Across eight epochs, each sequence is scheduled through all eight lengths.
+The endpoint and its future-outlook label remain aligned while the amount of
+history varies.
 
 All prefixes from the same lifecycle must remain in the same dataset split.
 Splitting overlapping prefixes of one cycle across training and validation is
@@ -263,6 +271,10 @@ Implemented:
 - weighted state/outlook loss and AdamW mini-batch training;
 - model and numeric-normalizer checkpoint artifacts;
 - a generic inference response contract with explicit abstention;
+- a public `predict()` API accepting 1–8 `{state, range}` steps;
+- an in-memory service buffer keyed by `cycle_id`;
+- suffix-length training across all supported input lengths;
+- standalone and step-by-step streaming CLI inspection;
 - 5,419 generated sequences of length 8 in the ignored `datasets/` directory.
 
 Not implemented:
@@ -273,7 +285,7 @@ Not implemented:
 - calibrated probabilities and abstention thresholds;
 - stability estimation;
 - conditional range-statistics artifact;
-- embedded streaming inference state.
+- production-calibrated streaming inference.
 
 The current length-8 sequences are useful pipeline fixtures, but they do not yet
 fully encode the lifecycle formulation described here.
@@ -306,13 +318,13 @@ logits use a multi-label objective because the existing boolean outcomes can
 overlap. Numeric future outcomes do not receive a regression head or contribute
 to training loss.
 
-The V1 architecture and training loop are implemented. Remaining model work:
+The V1 architecture, variable-length training, pure prediction API, and
+in-memory streaming wrapper are implemented. Remaining model work:
 
-1. expose `step`, `finalize`, and `reset` for embedded inference;
-2. produce lifecycle-aligned examples instead of overlapping fixed windows;
-3. split by true cycle identity when the exporter exposes it;
-4. measure per-head class balance and held-out metrics;
-5. calibrate probabilities and abstention thresholds on held-out cycles.
+1. produce lifecycle-aligned examples instead of overlapping fixed windows;
+2. split by true cycle identity when the exporter exposes it;
+3. measure per-head class balance and held-out metrics;
+4. calibrate probabilities and abstention thresholds on held-out cycles.
 
 The trainer still needs a cycle identifier or boundary marker so recurrent
 memory can be reset correctly and every cycle stays in exactly one dataset
@@ -321,18 +333,24 @@ decision table.
 
 ## Public runtime and CLI smoke test
 
-`ModelRuntime` is the public checkpoint consumer. It loads the trained model and
-numeric normalizer, applies the same preprocessing used during training, and
-returns `ModelOutput` from `forward()`.
+`ModelRuntime` is the pure checkpoint consumer. It loads the trained model and
+numeric normalizer, applies training-time preprocessing, and returns a
+prediction from a `SequenceRequest` containing 1–8 steps.
+
+`BufferedModelService` owns the transient cycle buffers used by an embedded
+runtime. It does not add a second prediction algorithm; every `push_step()`
+calls the same `ModelRuntime::predict()` used by standalone testing.
 
 The `inspect` binary exercises this path end to end on one dataset sequence:
 
 ```bash
-RUST_LOG=debug cargo run --bin inspect -- 0
+RUST_LOG=info cargo run --bin inspect -- --file examples/sample-sequence.json
+
+RUST_LOG=info cargo run --bin inspect -- --file examples/sample-sequence.json --stream
 ```
 
-The final argument is the zero-based sequence index. The command logs the
-parser-observed state, raw output tensor shapes, state probabilities, and five
-move-outlook probabilities. It is a runtime smoke test, not a quality claim.
+The second command simulates steps arriving one by one and logs a new full
+distribution after each step. An existing dataset item can also be inspected by
+passing its zero-based index. This is a runtime smoke test, not a quality claim.
 See [inspect-output.md](inspect-output.md) for the field-by-field output
 reference.

@@ -10,11 +10,13 @@ pub struct MarketSequence {
     pub range_telemetry: Vec<SequenceStep>,
     pub cycle_context: Vec<SequenceStep>,
     pub episode_context: Vec<SequenceStep>,
+    #[serde(default)]
     pub future_outcomes: Map<String, Value>,
+    #[serde(default)]
     pub debug_semantics: SequenceDebugSemantics,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct SequenceDebugSemantics {
     pub per_step: Vec<SequenceStep>,
 }

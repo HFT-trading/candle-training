@@ -1,158 +1,121 @@
 # Model Response
 
-## Command
+## Input contract
+
+Inference accepts one chronological array containing between 1 and 8 steps:
+
+```json
+{
+  "cycle_id": "example-cycle",
+  "steps": [
+    {
+      "step_id": "step-1",
+      "time": "13:43:39",
+      "state": {},
+      "range": {}
+    }
+  ]
+}
+```
+
+`cycle_id`, `step_id`, and `time` are optional identifiers. The learned input is
+only `state + range`. Steps must be ordered from oldest to newest.
+
+The input does not need `cycle_context`, `episode_context`, future targets, or
+reference labels. A ready-to-edit example is
+`examples/sample-sequence.json`.
+
+## Commands
+
+Predict once from every step in a JSON file:
+
+```bash
+RUST_LOG=info cargo run --bin inspect -- --file examples/sample-sequence.json
+```
+
+Simulate the embedded service receiving the same steps one at a time:
+
+```bash
+RUST_LOG=info cargo run --bin inspect -- --file examples/sample-sequence.json --stream
+```
+
+With four input steps, streaming mode returns four reports: after step 1, step
+2, step 3, and step 4. It demonstrates how the interpretation changes as the
+active cycle accumulates evidence.
+
+An existing training sequence can still be inspected by its zero-based index:
 
 ```bash
 RUST_LOG=info cargo run --bin inspect -- 0
 ```
 
-The final argument is the zero-based sequence index. The default output contains
-only the two model results:
+Add `--raw` only when the input telemetry and dataset reference label are also
+needed.
+
+## Response
 
 ```text
-INFO MODEL: STATE: regime Sideway 98.2% | quality Choppy 93.8% | stage Compression 43.9%
-INFO MODEL: OUTLOOK: future_reaches_25bps: 42.2% | future_reaches_40bps: 10.5% | future_returns_to_origin: 65.2% | future_counter_confirm: 9.6% | future_aligned_confirm: 11.7%
+MODEL: CONTEXT: 4/8 steps
+MODEL: REGIME: DownAttempt 14.4% | Sideway 84.3% | UpAttempt 1.3%
+MODEL: QUALITY: Accepted 1.3% | Broken 1.6% | Choppy 47.6% | Pressured 9.7% | Rejected 7.5% | Weak 32.3%
+MODEL: STAGE: Compression 40.1% | EarlyExpansion 23.2% | Expansion 13.6% | ExtendedExpansion 5.8% | PressureBuild 17.3%
+MODEL: OUTLOOK: future_reaches_25bps 55.9% | future_reaches_40bps 15.6% | future_returns_to_origin 42.7% | future_counter_confirm 8.3% | future_aligned_confirm 15.9%
 ```
 
-## What running a sequence produces
-
-The selected sequence contains ordered market snapshots. The model reads them
-from first to last and uses the GRU to build one memory of the process seen so
-far.
-
-For the final snapshot, it returns:
-
-1. `STATE`: what the market process appears to be now;
-2. `OUTLOOK`: which future lifecycle outcomes appear likely after this point.
-
-The sequence provides temporal context. The result is not eight independent
-snapshot classifications and it is not a price forecast or trading action.
-
-```text
-ordered snapshots
-       -> sequence memory
-       -> current STATE + future OUTLOOK
-```
+`CONTEXT: 4/8` means four observations were available. It does not mean the
+input is 50% valid or that the cycle is halfway complete. One step is valid but
+contains less temporal evidence; eight steps provide the complete configured
+memory window. If more than eight steps arrive, the service retains the newest
+eight.
 
 ## STATE
 
-Example:
+STATE is split into three independent classification questions:
 
-```text
-STATE: regime Sideway 98.2% | quality Choppy 93.8% | stage Compression 43.9%
-```
+- `REGIME`: `Sideway`, `UpAttempt`, or `DownAttempt` — what broad directional
+  condition is being expressed;
+- `QUALITY`: `Accepted`, `Broken`, `Choppy`, `Pressured`, `Rejected`, or `Weak`
+  — how coherent or credible that expression appears;
+- `STAGE`: `Compression`, `PressureBuild`, `EarlyExpansion`, `Expansion`, or
+  `ExtendedExpansion` — where the process appears to be in its lifecycle.
 
-`STATE` describes the model's interpretation at the end of the sequence. It has
-three separate dimensions.
+Every class is shown, rather than only the winning class. Percentages within
+each line are a softmax distribution and add to approximately 100%. The three
+lines are separate questions, so percentages across different lines must not
+be added together.
 
-### Regime
-
-```text
-Sideway | UpAttempt | DownAttempt
-```
-
-Regime answers:
-
-> What broad directional condition is the process expressing now?
-
-`UpAttempt` and `DownAttempt` describe an attempted market-state direction. They
-do not mean buy, sell, or that the attempt will succeed.
-
-### Quality
-
-```text
-Accepted | Broken | Choppy | Pressured | Rejected | Weak
-```
-
-Quality answers:
-
-> How coherent or credible is the current state expression?
-
-Regime and quality are separate because an `UpAttempt` can be `Weak`,
-`Pressured`, or `Accepted`.
-
-### Stage
-
-```text
-Compression | PressureBuild | EarlyExpansion | Expansion | ExtendedExpansion
-```
-
-Stage answers:
-
-> Where is the process in its current lifecycle?
-
-Stage does not describe direction. For example, `Expansion` may occur in either
-direction and may still have weak or rejected quality.
-
-### Percentages
-
-Each percentage is the highest softmax probability from its own state head.
-The three displayed percentages do not need to add to 100% because regime,
-quality, and stage are three different classification questions.
-
-`Compression 43.9%` means Compression was the highest stage class, but the
-stage head was relatively uncertain. Until calibration and abstention are
-implemented, the CLI still prints the top class instead of `UNKNOWN`.
+`UpAttempt` and `DownAttempt` describe observed market-state direction. They do
+not mean buy, sell, or that the attempt will succeed.
 
 ## OUTLOOK
 
-Example:
+OUTLOOK estimates five possible events after the current endpoint:
+
+- `future_reaches_25bps`;
+- `future_reaches_40bps`;
+- `future_returns_to_origin`;
+- `future_counter_confirm`;
+- `future_aligned_confirm`.
+
+These are five independent sigmoid probabilities. They do not add to 100%
+because several events may occur in one lifecycle. OUTLOOK supplies evidence
+about how the process may develop; it never returns buy, sell, hold, enter, or
+exit.
+
+## What the GRU contributes
+
+The GRU does not merely average the rows. It updates an ordered memory:
 
 ```text
-OUTLOOK: future_reaches_25bps: 42.2% | future_reaches_40bps: 10.5% | future_returns_to_origin: 65.2% | future_counter_confirm: 9.6% | future_aligned_confirm: 11.7%
+previous memory + next state/range step -> new memory -> STATE + OUTLOOK
 ```
 
-`OUTLOOK` describes possible events after the sequence endpoint:
-
-- `future_reaches_25bps`: chance of reaching the 25-bps threshold;
-- `future_reaches_40bps`: chance of reaching the 40-bps threshold;
-- `future_returns_to_origin`: chance of returning near the cycle origin;
-- `future_counter_confirm`: chance of a future accepted counter confirmation;
-- `future_aligned_confirm`: chance of a future accepted aligned confirmation.
-
-The five percentages are independent sigmoid outputs and do not add to 100%.
-Multiple events can occur in one lifecycle. A process may reach 25 bps, later
-reach 40 bps, and also produce an aligned confirmation.
-
-`OUTLOOK` supplies evidence about how the process may develop. It does not say
-buy, sell, enter, exit, or hold.
-
-## Why the sequence matters
-
-The final snapshot alone may look identical in two different situations:
-
-```text
-Compression -> PressureBuild -> UpAttempt -> Weak
-```
-
-and:
-
-```text
-DownAttempt -> Broken -> Sideway -> Weak
-```
-
-The GRU memory makes the final response depend on the path leading to the
-current snapshot. `STATE` describes the endpoint using that history; `OUTLOOK`
-uses the same history to estimate possible next outcomes.
-
-The current fixed dataset sequence has eight steps. Future lifecycle-aligned
-data may use longer or variable-length sequences without changing the meaning
-of the two response groups.
-
-## Optional raw/reference output
-
-Raw timestep data and dataset reference labels are debug information, not part
-of the model response. Show them only when needed:
-
-```bash
-RUST_LOG=info cargo run --bin inspect -- 0 --raw
-```
-
-This adds `REPORT` lines for every input timestep and one `REFERENCE` line for
-the dataset labels. The default command omits them.
+Consequently, the same final step may produce a different result when the path
+leading to it differs. `--stream` makes this evolution visible.
 
 ## Current limitation
 
-The checkpoint currently proves that training and inference work end to end.
-Its percentages are not production probabilities yet. They still require
-cycle-aligned data, held-out metrics, calibration, and `UNKNOWN` thresholds.
+The checkpoint proves the architecture, training, buffering, and inference
+path work end to end. Its values are not production-grade probabilities yet.
+They still require lifecycle-aligned data, held-out per-head metrics,
+calibration, and explicit `UNKNOWN` thresholds.
