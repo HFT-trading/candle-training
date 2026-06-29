@@ -37,6 +37,15 @@ impl Vocab {
     pub fn class_count(&self) -> usize {
         self.value_to_id.len()
     }
+
+    /// Inverse of training's `id - 1`: the class string for a 0-based head index.
+    pub fn label(&self, class_index: usize) -> Option<&str> {
+        let id = class_index as u32 + 1;
+        self.value_to_id
+            .iter()
+            .find(|(_, value)| **value == id)
+            .map(|(key, _)| key.as_str())
+    }
 }
 
 /// All categorical fields, keyed by `"<level>.<field>"`.
@@ -52,5 +61,10 @@ impl FeatureVocab {
 
     pub fn get(&self, key: &str) -> Option<&Vocab> {
         self.fields.get(key)
+    }
+
+    /// Class string for `"<level>.<field>"` and a 0-based head index.
+    pub fn label(&self, key: &str, class_index: usize) -> Option<&str> {
+        self.get(key).and_then(|vocab| vocab.label(class_index))
     }
 }

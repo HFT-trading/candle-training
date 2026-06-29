@@ -6,6 +6,8 @@
 pub mod config;
 pub mod model;
 pub mod normalizer;
+pub mod report;
 pub mod sequence;
+pub mod serve;
 pub mod tensors;
 pub mod vocab;

@@ -1,5 +1,5 @@
 //! The market-structure model: hierarchical encoder + per-block / per-relation
-//! heads (head A). Head B (next-block forecast) will hang off the same encoder.
+//! structure heads.
 //!
 //! Flow: embed categorical + project numeric -> fuse (GELU) -> GRU over the 32
 //! steps (hidden carries across block boundaries) -> mean-pool each block's 8
