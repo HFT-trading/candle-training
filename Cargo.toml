@@ -1,16 +1,8 @@
-[package]
-name = "bot-training"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+resolver = "2"
+members = ["crates/structure-core", "crates/training"]
 
-[dependencies]
-candle-core = { version = "0.10.2", features = ["metal"] }
-candle-nn = "0.10.2"
-rand = "0.9"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
-
-# Logger
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+# Optimize dependencies (candle/gemm) even in debug builds so `cargo run` is fast
+# for tensor work, while keeping our own crates debuggable.
+[profile.dev.package."*"]
+opt-level = 3

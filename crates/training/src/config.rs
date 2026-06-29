@@ -1,21 +1,15 @@
+//! App config loaded from `config.yml` (model hyper-params + training knobs).
+
 use std::error::Error;
 use std::fs::File;
 
 use serde::Deserialize;
+use structure_core::config::ModelConfig;
 
 #[derive(Debug, Deserialize)]
 pub struct AppConfig {
     pub model: ModelConfig,
     pub training: TrainingConfig,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ModelConfig {
-    pub max_sequence_steps: usize,
-    pub categorical_embedding_dim: usize,
-    pub numeric_projection_dim: usize,
-    pub step_representation_dim: usize,
-    pub gru_hidden_dim: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,8 +20,11 @@ pub struct TrainingConfig {
     pub weight_decay: f64,
     pub validation_fraction: f64,
     pub shuffle_seed: u64,
-    pub state_loss_weight: f64,
-    pub outlook_loss_weight: f64,
+    pub block_loss_weight: f64,
+    pub relation_loss_weight: f64,
+    pub use_class_weights: bool,
+    /// Stop after this many epochs without val improvement (0 disables).
+    pub early_stop_patience: usize,
 }
 
 impl AppConfig {
