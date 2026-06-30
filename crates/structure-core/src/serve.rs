@@ -102,13 +102,18 @@ impl StructureModel {
                 labels.insert((*field).to_owned(), value.to_owned());
             }
         }
+        // Relations are block-to-block, so a single-block window (the first
+        // emit of a streaming session) has none yet; fall back to "-".
         let relations = output.relation_logits[0].dim(1)?;
-        let relation_class = argmax_class(&output.relation_logits[0].i((0, relations - 1))?)?;
-        let relation = self
-            .vocab
-            .label("relations.relation", relation_class)
-            .unwrap_or("-")
-            .to_owned();
+        let relation = if relations == 0 {
+            "-".to_owned()
+        } else {
+            let relation_class = argmax_class(&output.relation_logits[0].i((0, relations - 1))?)?;
+            self.vocab
+                .label("relations.relation", relation_class)
+                .unwrap_or("-")
+                .to_owned()
+        };
 
         Ok(build_report(&labels, &relation))
     }

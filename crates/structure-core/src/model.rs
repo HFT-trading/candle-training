@@ -140,15 +140,27 @@ impl MarketStructureModel {
             .map(|head| head.forward(&block_repr))
             .collect::<Result<Vec<_>>>()?;
 
-        let relations = blocks - 1;
-        let left = block_repr.narrow(1, 0, relations)?;
-        let right = block_repr.narrow(1, 1, relations)?;
-        let pairs = Tensor::cat(&[&left, &right], 2)?.contiguous()?; // [batch, relations, 2*hidden]
-        let relation_logits = self
-            .relation_heads
-            .iter()
-            .map(|head| head.forward(&pairs))
-            .collect::<Result<Vec<_>>>()?;
+        let relations = blocks.saturating_sub(1);
+        let relation_logits = if relations == 0 {
+            // Single-block window (the first emit of a streaming session): no
+            // block pairs exist yet. Run each head on one synthetic pair and
+            // slice it to length 0, so we get correctly-shaped `[batch, 0,
+            // classes]` logits without a zero-length matmul (which panics).
+            let single = block_repr.narrow(1, 0, 1)?;
+            let dummy = Tensor::cat(&[&single, &single], 2)?.contiguous()?;
+            self.relation_heads
+                .iter()
+                .map(|head| head.forward(&dummy)?.narrow(1, 0, 0))
+                .collect::<Result<Vec<_>>>()?
+        } else {
+            let left = block_repr.narrow(1, 0, relations)?;
+            let right = block_repr.narrow(1, 1, relations)?;
+            let pairs = Tensor::cat(&[&left, &right], 2)?.contiguous()?; // [batch, relations, 2*hidden]
+            self.relation_heads
+                .iter()
+                .map(|head| head.forward(&pairs))
+                .collect::<Result<Vec<_>>>()?
+        };
 
         Ok(ModelOutput {
             block_logits,
