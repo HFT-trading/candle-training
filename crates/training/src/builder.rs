@@ -6,6 +6,7 @@
 
 use candle_core::{Device, Tensor};
 use serde_json::{Map, Value};
+use structure_core::input::encode_step;
 use structure_core::sequence::{
     BLOCK_LABEL_FIELDS, CATEGORICAL_FEATURES, NUMERIC_FEATURES, RELATION_LABEL_FIELDS,
 };
@@ -48,17 +49,7 @@ pub fn build_tensors(
             return Err(BuildError::Shape);
         }
         for sequence in &context.training_data.sequences {
-            for feature in CATEGORICAL_FEATURES {
-                let value = sequence.categorical(feature);
-                let id = vocab
-                    .get(&format!("sequence.{feature}"))
-                    .map(|entry| entry.id(&value))
-                    .unwrap_or(0);
-                categorical.push(id);
-            }
-            for feature in NUMERIC_FEATURES {
-                numeric.push(sequence.numeric(feature));
-            }
+            encode_step(sequence, vocab, &mut categorical, &mut numeric);
         }
         for block in &context.labels.blocks {
             for field in BLOCK_LABEL_FIELDS {

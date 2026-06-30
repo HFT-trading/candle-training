@@ -6,6 +6,7 @@ use std::fs;
 use candle_core::{DType, Device};
 use candle_nn::{VarBuilder, VarMap};
 use structure_core::model::MarketStructureModel;
+use structure_core::serve::ServeMeta;
 use training::builder::build_tensors;
 use training::config::AppConfig;
 use training::dataset::{build_vocab, load_contexts};
@@ -17,6 +18,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let contexts = load_contexts("datasets/market_contexts.jsonl")?;
     let block_size = contexts[0].metadata.shape.block_size;
+    let context_blocks = contexts[0].metadata.shape.context_blocks;
     let vocab = build_vocab(&contexts);
     let tensors = build_tensors(&contexts, &vocab, &device)?;
     // Optional CLI arg forces a specific validation source (robustness checks);
@@ -65,8 +67,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .normalizer
         .save("artifacts/numeric-normalizer.safetensors")?;
     fs::write("artifacts/vocab.json", serde_json::to_string_pretty(&vocab)?)?;
+    let meta = ServeMeta {
+        model: config.model.clone(),
+        block_size,
+        context_blocks,
+    };
+    fs::write("artifacts/meta.json", serde_json::to_string_pretty(&meta)?)?;
     println!(
-        "saved artifacts/{{model.safetensors (best epoch {}), numeric-normalizer.safetensors, vocab.json}}",
+        "saved artifacts/{{model.safetensors (best epoch {}), numeric-normalizer.safetensors, vocab.json, meta.json}}",
         report.best_epoch
     );
 

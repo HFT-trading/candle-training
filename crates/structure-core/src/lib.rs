@@ -4,6 +4,7 @@
 //! depend on this crate, so the feature/vocab/model definitions live here once.
 
 pub mod config;
+pub mod input;
 pub mod model;
 pub mod normalizer;
 pub mod report;

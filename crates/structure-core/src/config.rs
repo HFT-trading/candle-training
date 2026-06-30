@@ -1,9 +1,9 @@
 //! Model hyper-parameters, shared by training and serving (loaded from
 //! `config.yml` at train time, saved alongside the model for serving).
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ModelConfig {
     pub categorical_embedding_dim: usize,
     pub numeric_projection_dim: usize,

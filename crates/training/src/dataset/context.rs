@@ -7,6 +7,7 @@
 
 use serde::Deserialize;
 use serde_json::{Map, Value};
+use structure_core::input::StepFeatures;
 use structure_core::sequence::{MISSING_CATEGORY, PATTERN_NONE};
 
 #[derive(Debug, Deserialize)]
@@ -43,26 +44,19 @@ pub struct Sequence {
     pub pattern: Pattern,
 }
 
-impl Sequence {
-    /// Categorical value for a feature name (handles the nested `pattern.name`
-    /// and missing fields). Shared by vocab building and tensor building.
-    pub fn categorical(&self, feature: &str) -> String {
+impl StepFeatures for Sequence {
+    fn categorical(&self, feature: &str) -> &str {
         if feature == "pattern.name" {
-            self.pattern
-                .name
-                .clone()
-                .unwrap_or_else(|| PATTERN_NONE.to_owned())
+            self.pattern.name.as_deref().unwrap_or(PATTERN_NONE)
         } else {
             self.vector
                 .get(feature)
                 .and_then(|value| value.as_str())
                 .unwrap_or(MISSING_CATEGORY)
-                .to_owned()
         }
     }
 
-    /// Numeric value for a feature name (handles the nested `pattern.*`).
-    pub fn numeric(&self, feature: &str) -> f32 {
+    fn numeric(&self, feature: &str) -> f32 {
         match feature {
             "pattern.confidence" => self.pattern.confidence as f32,
             "pattern.length" => self.pattern.length as f32,

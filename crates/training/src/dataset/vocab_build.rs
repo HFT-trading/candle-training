@@ -3,6 +3,7 @@
 //! Input categorical features are keyed `"sequence.<field>"`; supervised labels
 //! are keyed `"blocks.<field>"` / `"relations.<field>"`.
 
+use structure_core::input::StepFeatures;
 use structure_core::sequence::{BLOCK_LABEL_FIELDS, CATEGORICAL_FEATURES, RELATION_LABEL_FIELDS};
 use structure_core::vocab::FeatureVocab;
 
@@ -15,7 +16,7 @@ pub fn build_vocab(contexts: &[Context]) -> FeatureVocab {
             for feature in CATEGORICAL_FEATURES {
                 vocab.observe(
                     &format!("sequence.{feature}"),
-                    &sequence.categorical(feature),
+                    sequence.categorical(feature),
                 );
             }
         }
