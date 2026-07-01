@@ -1,9 +1,10 @@
 //! One JSONL row of `market_contexts.jsonl` (schema v2).
 //!
 //! We only declare the fields we consume; serde ignores the rest. In particular
-//! `training_data.{blocks,context,block_relations}` are intentionally dropped:
-//! summaries would trivialize the task and `block_relations` duplicates
-//! `labels.relations` (a leak).
+//! `training_data.{blocks,context}` are intentionally dropped (summaries would
+//! trivialize the deterministic labels). Block-to-block relations are no longer
+//! a model target — transitions are derived in the report rules layer from the
+//! per-block reads instead.
 
 use serde::Deserialize;
 use serde_json::{Map, Value};
@@ -81,5 +82,15 @@ pub struct Pattern {
 #[derive(Debug, Deserialize)]
 pub struct Labels {
     pub blocks: Vec<Map<String, Value>>,
-    pub relations: Vec<Map<String, Value>>,
+}
+
+/// Canonical class token for a categorical label value. Strings pass through;
+/// booleans (e.g. `absorption`) map to `"true"`/`"false"` so they ride the same
+/// vocabulary/classification path as the string-valued fields.
+pub fn label_token(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => Some(text.clone()),
+        Value::Bool(flag) => Some(flag.to_string()),
+        _ => None,
+    }
 }

@@ -7,20 +7,16 @@
 use candle_core::{Device, Tensor};
 use serde_json::{Map, Value};
 use structure_core::input::encode_step;
-use structure_core::sequence::{
-    BLOCK_LABEL_FIELDS, CATEGORICAL_FEATURES, NUMERIC_FEATURES, RELATION_LABEL_FIELDS,
-};
+use structure_core::sequence::{BLOCK_LABEL_FIELDS, CATEGORICAL_FEATURES, NUMERIC_FEATURES};
 use structure_core::tensors::ModelInputs;
 use structure_core::vocab::FeatureVocab;
 
-use crate::dataset::Context;
+use crate::dataset::{Context, label_token};
 
 pub struct TrainingTensors {
     pub inputs: ModelInputs,
     /// Block targets, shape `[N, blocks, BLOCK_LABEL_FIELDS]` (0-based class ids).
     pub block_targets: Tensor,
-    /// Relation targets, shape `[N, relations, RELATION_LABEL_FIELDS]` (0-based).
-    pub relation_targets: Tensor,
 }
 
 pub fn build_tensors(
@@ -31,7 +27,6 @@ pub fn build_tensors(
     let first = contexts.first().ok_or(BuildError::Empty)?;
     let seq_len = first.metadata.shape.sequence_len;
     let blocks = first.metadata.shape.context_blocks;
-    let relations = blocks.saturating_sub(1);
     let n = contexts.len();
     let n_cat = CATEGORICAL_FEATURES.len();
     let n_num = NUMERIC_FEATURES.len();
@@ -39,12 +34,10 @@ pub fn build_tensors(
     let mut categorical = Vec::with_capacity(n * seq_len * n_cat);
     let mut numeric = Vec::with_capacity(n * seq_len * n_num);
     let mut block_targets = Vec::with_capacity(n * blocks * BLOCK_LABEL_FIELDS.len());
-    let mut relation_targets = Vec::with_capacity(n * relations * RELATION_LABEL_FIELDS.len());
 
     for context in contexts {
         if context.training_data.sequences.len() != seq_len
             || context.labels.blocks.len() != blocks
-            || context.labels.relations.len() != relations
         {
             return Err(BuildError::Shape);
         }
@@ -54,11 +47,6 @@ pub fn build_tensors(
         for block in &context.labels.blocks {
             for field in BLOCK_LABEL_FIELDS {
                 block_targets.push(target_id(vocab, "blocks", field, block)?);
-            }
-        }
-        for relation in &context.labels.relations {
-            for field in RELATION_LABEL_FIELDS {
-                relation_targets.push(target_id(vocab, "relations", field, relation)?);
             }
         }
     }
@@ -73,11 +61,6 @@ pub fn build_tensors(
             (n, blocks, BLOCK_LABEL_FIELDS.len()),
             device,
         )?,
-        relation_targets: Tensor::from_vec(
-            relation_targets,
-            (n, relations, RELATION_LABEL_FIELDS.len()),
-            device,
-        )?,
     })
 }
 
@@ -90,18 +73,15 @@ fn target_id(
 ) -> Result<u32, BuildError> {
     let value = values
         .get(field)
-        .and_then(|value| value.as_str())
+        .and_then(label_token)
         .ok_or_else(|| BuildError::MissingLabel {
             level: level.to_owned(),
             field: field.to_owned(),
         })?;
     let key = format!("{level}.{field}");
-    let id = vocab.get(&key).map(|entry| entry.id(value)).unwrap_or(0);
+    let id = vocab.get(&key).map(|entry| entry.id(&value)).unwrap_or(0);
     if id == 0 {
-        return Err(BuildError::UnknownLabel {
-            key,
-            value: value.to_owned(),
-        });
+        return Err(BuildError::UnknownLabel { key, value });
     }
     Ok(id - 1)
 }

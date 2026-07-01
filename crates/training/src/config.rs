@@ -20,9 +20,13 @@ pub struct TrainingConfig {
     pub weight_decay: f64,
     pub validation_fraction: f64,
     pub shuffle_seed: u64,
-    pub block_loss_weight: f64,
-    pub relation_loss_weight: f64,
+    /// Apply inverse-frequency class weights to EVERY classification head.
     pub use_class_weights: bool,
+    /// Block fields that always get class weights even when `use_class_weights`
+    /// is off — for rare flags (e.g. `absorption`) that otherwise collapse to
+    /// the majority class while the balanced heads stay sharp unweighted.
+    #[serde(default)]
+    pub weighted_block_fields: Vec<String>,
     /// Stop after this many epochs without val improvement (0 disables).
     pub early_stop_patience: usize,
 }

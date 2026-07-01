@@ -14,7 +14,7 @@ use crate::config::ModelConfig;
 use crate::input::{StepInput, encode_steps};
 use crate::model::MarketStructureModel;
 use crate::normalizer::NumericNormalizer;
-use crate::report::{StructureReport, build_report};
+use crate::report::{BlockRead, StructureReport, build_report};
 use crate::sequence::BLOCK_LABEL_FIELDS;
 use crate::tensors::ModelInputs;
 use crate::vocab::FeatureVocab;
@@ -95,6 +95,20 @@ impl StructureModel {
 
         let blocks = output.block_logits[0].dim(1)?;
         let last_block = blocks - 1;
+
+        // Predicted categorical label for one block, by field name.
+        let block_label = |field: &str, block: usize| -> CandleResult<Option<String>> {
+            let index = BLOCK_LABEL_FIELDS
+                .iter()
+                .position(|name| name == &field)
+                .expect("known block field");
+            let class = argmax_class(&output.block_logits[index].i((0, block))?)?;
+            Ok(self
+                .vocab
+                .label(&format!("blocks.{field}"), class)
+                .map(str::to_owned))
+        };
+
         let mut labels = HashMap::new();
         for (index, field) in BLOCK_LABEL_FIELDS.iter().enumerate() {
             let class = argmax_class(&output.block_logits[index].i((0, last_block))?)?;
@@ -102,20 +116,19 @@ impl StructureModel {
                 labels.insert((*field).to_owned(), value.to_owned());
             }
         }
-        // Relations are block-to-block, so a single-block window (the first
-        // emit of a streaming session) has none yet; fall back to "-".
-        let relations = output.relation_logits[0].dim(1)?;
-        let relation = if relations == 0 {
-            "-".to_owned()
+
+        // The previous block (when the window holds at least two) feeds the
+        // transition read in the rules layer.
+        let previous = if last_block >= 1 {
+            Some(BlockRead {
+                direction: block_label("direction", last_block - 1)?.unwrap_or_default(),
+                range_rank: block_label("range_rank", last_block - 1)?.unwrap_or_default(),
+            })
         } else {
-            let relation_class = argmax_class(&output.relation_logits[0].i((0, relations - 1))?)?;
-            self.vocab
-                .label("relations.relation", relation_class)
-                .unwrap_or("-")
-                .to_owned()
+            None
         };
 
-        Ok(build_report(&labels, &relation))
+        Ok(build_report(&labels, previous.as_ref()))
     }
 
     /// Start a streaming session: push one `StepInput` at a time.

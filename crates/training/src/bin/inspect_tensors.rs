@@ -18,7 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     print_tensor("categorical input", &tensors.inputs.categorical);
     print_tensor("numeric input    ", &tensors.inputs.numeric);
     print_tensor("block targets    ", &tensors.block_targets);
-    print_tensor("relation targets ", &tensors.relation_targets);
 
     Ok(())
 }

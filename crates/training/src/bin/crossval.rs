@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 use candle_core::{DType, Device};
 use candle_nn::{VarBuilder, VarMap};
 use structure_core::model::MarketStructureModel;
-use structure_core::sequence::{BLOCK_LABEL_FIELDS, RELATION_LABEL_FIELDS};
+use structure_core::sequence::BLOCK_LABEL_FIELDS;
 use training::builder::build_tensors;
 use training::config::AppConfig;
 use training::dataset::{build_vocab, load_contexts};
@@ -21,11 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let block_size = contexts[0].metadata.shape.block_size;
     let vocab = build_vocab(&contexts);
     let tensors = build_tensors(&contexts, &vocab, &device)?;
-    let weights = if config.training.use_class_weights {
-        Some(ClassWeights::from_vocab(&vocab, &device)?)
-    } else {
-        None
-    };
+    let weights = ClassWeights::from_config(&vocab, &config.training, &device)?;
 
     let sources: BTreeSet<String> = contexts
         .iter()
@@ -49,7 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &tensors,
             &split,
             &config.training,
-            weights.as_ref(),
+            Some(&weights),
             false,
         )?;
         println!(
@@ -65,9 +61,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("\n=== mean acc / macro across {} folds (±std) ===", folds.len());
     aggregate("block", &BLOCK_LABEL_FIELDS, &folds, |report| &report.block);
-    aggregate("rel", &RELATION_LABEL_FIELDS, &folds, |report| {
-        &report.relation
-    });
     let mean_val = mean(&folds.iter().map(|(_, value, _)| *value).collect::<Vec<_>>());
     println!("\nmean best_val = {mean_val:.4}");
 

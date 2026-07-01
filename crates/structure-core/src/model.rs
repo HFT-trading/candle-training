@@ -11,19 +11,14 @@ use candle_nn::{
 };
 
 use crate::config::ModelConfig;
-use crate::sequence::{
-    BLOCK_LABEL_FIELDS, CATEGORICAL_FEATURES, NUMERIC_FEATURES, RELATION_LABEL_FIELDS,
-};
+use crate::sequence::{BLOCK_LABEL_FIELDS, CATEGORICAL_FEATURES, NUMERIC_FEATURES};
 use crate::tensors::ModelInputs;
 use crate::vocab::FeatureVocab;
 
-/// Logits per supervised field. Each list is in `BLOCK_LABEL_FIELDS` /
-/// `RELATION_LABEL_FIELDS` order.
+/// Logits per supervised field, in `BLOCK_LABEL_FIELDS` order.
 pub struct ModelOutput {
     /// One tensor per block field, shape `[batch, blocks, classes]`.
     pub block_logits: Vec<Tensor>,
-    /// One tensor per relation field, shape `[batch, relations, classes]`.
-    pub relation_logits: Vec<Tensor>,
 }
 
 pub struct MarketStructureModel {
@@ -32,7 +27,6 @@ pub struct MarketStructureModel {
     step_projection: Linear,
     gru: GRU,
     block_heads: Vec<Linear>,
-    relation_heads: Vec<Linear>,
     block_size: usize,
 }
 
@@ -77,32 +71,26 @@ impl MarketStructureModel {
             vb.pp("gru"),
         )?;
 
+        // block_repr = concat[mean-pool, last-step] over each block's 8 steps, so
+        // the ending (needed to read intra-block process: reclaim, fade, ...) is
+        // preserved alongside the average the other heads relied on.
+        let block_repr_dim = config.gru_hidden_dim * 2;
+
         let mut block_heads = Vec::with_capacity(BLOCK_LABEL_FIELDS.len());
         for field in BLOCK_LABEL_FIELDS {
             let classes = head_classes(vocab, &format!("blocks.{field}"))?;
             block_heads.push(linear(
-                config.gru_hidden_dim,
+                block_repr_dim,
                 classes,
                 vb.pp(format!("head.block.{field}")),
             )?);
         }
-        let mut relation_heads = Vec::with_capacity(RELATION_LABEL_FIELDS.len());
-        for field in RELATION_LABEL_FIELDS {
-            let classes = head_classes(vocab, &format!("relations.{field}"))?;
-            relation_heads.push(linear(
-                config.gru_hidden_dim * 2,
-                classes,
-                vb.pp(format!("head.relation.{field}")),
-            )?);
-        }
-
         Ok(Self {
             categorical_embeddings,
             numeric_projection,
             step_projection,
             gru,
             block_heads,
-            relation_heads,
             block_size,
         })
     }
@@ -129,10 +117,15 @@ impl MarketStructureModel {
         let hidden_dim = hidden.dim(2)?;
 
         let blocks = seq_len / self.block_size;
-        // Pool each block's steps; the GRU has already mixed earlier blocks in.
-        let block_repr = hidden
-            .reshape((batch, blocks, self.block_size, hidden_dim))?
-            .mean(2)?; // [batch, blocks, hidden]
+        // Per block: concat[mean over its 8 steps, last step]. Mean gives the
+        // average (what earlier heads used); the last GRU hidden carries the
+        // ordered trajectory/ending that intra-block process reads need.
+        let per_step = hidden.reshape((batch, blocks, self.block_size, hidden_dim))?;
+        let mean_pool = per_step.mean(2)?; // [batch, blocks, hidden]
+        let last_pool = per_step
+            .narrow(2, self.block_size - 1, 1)?
+            .squeeze(2)?; // [batch, blocks, hidden]
+        let block_repr = Tensor::cat(&[&mean_pool, &last_pool], 2)?.contiguous()?; // [batch, blocks, 2*hidden]
 
         let block_logits = self
             .block_heads
@@ -140,32 +133,7 @@ impl MarketStructureModel {
             .map(|head| head.forward(&block_repr))
             .collect::<Result<Vec<_>>>()?;
 
-        let relations = blocks.saturating_sub(1);
-        let relation_logits = if relations == 0 {
-            // Single-block window (the first emit of a streaming session): no
-            // block pairs exist yet. Run each head on one synthetic pair and
-            // slice it to length 0, so we get correctly-shaped `[batch, 0,
-            // classes]` logits without a zero-length matmul (which panics).
-            let single = block_repr.narrow(1, 0, 1)?;
-            let dummy = Tensor::cat(&[&single, &single], 2)?.contiguous()?;
-            self.relation_heads
-                .iter()
-                .map(|head| head.forward(&dummy)?.narrow(1, 0, 0))
-                .collect::<Result<Vec<_>>>()?
-        } else {
-            let left = block_repr.narrow(1, 0, relations)?;
-            let right = block_repr.narrow(1, 1, relations)?;
-            let pairs = Tensor::cat(&[&left, &right], 2)?.contiguous()?; // [batch, relations, 2*hidden]
-            self.relation_heads
-                .iter()
-                .map(|head| head.forward(&pairs))
-                .collect::<Result<Vec<_>>>()?
-        };
-
-        Ok(ModelOutput {
-            block_logits,
-            relation_logits,
-        })
+        Ok(ModelOutput { block_logits })
     }
 }
 

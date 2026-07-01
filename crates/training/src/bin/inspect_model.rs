@@ -5,7 +5,7 @@ use candle_core::{DType, Device};
 use candle_nn::{VarBuilder, VarMap};
 use structure_core::config::ModelConfig;
 use structure_core::model::MarketStructureModel;
-use structure_core::sequence::{BLOCK_LABEL_FIELDS, RELATION_LABEL_FIELDS};
+use structure_core::sequence::BLOCK_LABEL_FIELDS;
 use structure_core::tensors::ModelInputs;
 use training::builder::build_tensors;
 use training::dataset::{build_vocab, load_contexts};
@@ -43,10 +43,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     for (field, logits) in BLOCK_LABEL_FIELDS.iter().zip(&output.block_logits) {
         println!("  {field}: {:?}", logits.dims());
     }
-    println!("--- relation heads ({}) ---", output.relation_logits.len());
-    for (field, logits) in RELATION_LABEL_FIELDS.iter().zip(&output.relation_logits) {
-        println!("  {field}: {:?}", logits.dims());
-    }
-
     Ok(())
 }

@@ -29,21 +29,20 @@ pub const CATEGORICAL_FEATURES: [&str; 8] = [
     "pattern.name",
 ];
 
-/// Supervised per-block structure labels (head A).
-pub const BLOCK_LABEL_FIELDS: [&str; 8] = [
+/// Supervised per-block classification labels (head A). `block_process` is the
+/// 7-state intra-block shape (CleanDrive/PullbackHeld/Reclaim/FailedPush/
+/// Absorption/DirtyRotation/BalancedAuction) — it replaced both `path_quality`
+/// and the `absorption` flag (subsumed). `path_state` (clear/unclear) and the
+/// block-to-block `phase_change` are DERIVED from it in the report layer.
+pub const BLOCK_LABEL_FIELDS: [&str; 7] = [
     "direction",
     "extension_rank",
     "range_rank",
     "range_frame_tag",
-    "path_quality",
     "ended_bias",
     "reversal_risk",
-    "trend_strength",
+    "block_process",
 ];
-
-/// Supervised block-to-block relation labels (head A). Regression fields
-/// (`range_ratio`, `net_delta_bps`) are intentionally excluded for now.
-pub const RELATION_LABEL_FIELDS: [&str; 3] = ["relation", "from_direction", "to_direction"];
 
 /// Category used when a categorical field is absent from a sequence.
 pub const MISSING_CATEGORY: &str = "__MISSING__";

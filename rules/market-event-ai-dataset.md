@@ -438,6 +438,91 @@ NoMove:
 
 These labels are intentionally broad. The first AI dataset should avoid too many tiny classes.
 
+## Future Direction Note: Terminal State and Path Profile
+
+The useful "current state" is not a standalone present moment. It is the right
+edge of a recent history window:
+
+```txt
+recent history -> terminal structure state
+```
+
+The model should first infer that terminal state well. Forecasting should not be
+framed as a direct `next_direction = Up | Down` task, because a valid move often
+requires an adverse leg first:
+
+```txt
+build up pressure -> pull back / retest -> continue
+build down pressure -> squeeze up first -> dump
+accumulate -> fake break -> resolve the other way
+trend -> pause / compress -> continue
+```
+
+For that reason, future modeling should describe a path profile rather than a
+single direction label.
+
+Candidate path-profile targets:
+
+```txt
+first_move_side
+needs_pullback_first
+needs_retest_first
+breaks_high_before_low
+breaks_low_before_high
+max_adverse_before_resolution
+max_favorable_after_resolution
+resolution_side
+time_to_resolution
+resolution_quality
+```
+
+This keeps the future task closer to how market movement actually resolves:
+
+```txt
+not "will it go up?"
+but "what path is likely required before the move resolves?"
+```
+
+The current block summaries already act as a small state cache:
+
+```txt
+8 sequences  -> 1 short block summary
+4 blocks     -> 1 recent context
+```
+
+Future architectures can make this cache explicit:
+
+```txt
+raw sequence steps
+-> short block cache
+-> recent move / pressure cache
+-> terminal state heads
+-> path-profile heads
+```
+
+`trend_strength` should be treated carefully in this framing. It is not just a
+local class for one block. It may represent a latent, history-conditioned state:
+
+```txt
+visible trend strength
+latent directional pressure
+accumulation / release / absorption / failure around the active side
+```
+
+If it remains difficult to learn as a block label, consider splitting it into
+clearer heads later:
+
+```txt
+visible_trend_strength
+pressure_side
+pressure_state
+phase_strength
+```
+
+This note does not replace the core inside-context dataset. It defines the safer
+direction for a later forecasting layer built on top of the terminal state
+representation.
+
 ## Later / Legacy Risk Labels
 
 Magnitude alone is not enough for holding context.

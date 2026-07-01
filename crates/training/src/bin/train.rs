@@ -10,6 +10,7 @@ use structure_core::serve::ServeMeta;
 use training::builder::build_tensors;
 use training::config::AppConfig;
 use training::dataset::{build_vocab, load_contexts};
+use structure_core::vocab::FeatureVocab;
 use training::trainer::{ClassWeights, DataSplit, EvalReport, train};
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -35,11 +36,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         split.validation_source,
     );
 
-    let weights = if config.training.use_class_weights {
-        Some(ClassWeights::from_vocab(&vocab, &device)?)
-    } else {
-        None
-    };
+    let weights = ClassWeights::from_config(&vocab, &config.training, &device)?;
 
     let varmap = VarMap::new();
     let vb = VarBuilder::from_varmap(&varmap, DType::F32, &device);
@@ -53,7 +50,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &tensors,
         &split,
         &config.training,
-        weights.as_ref(),
+        Some(&weights),
         true,
     )?;
 
@@ -62,6 +59,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         report.best_epoch, report.best_val
     );
     print_eval(&report.best_eval);
+    print_block_process_recall(&report.best_eval, &vocab);
 
     report
         .normalizer
@@ -93,14 +91,38 @@ fn print_eval(report: &EvalReport) {
             field.accuracy - field.baseline,
         );
     }
-    for field in &report.relation {
-        println!(
-            "  rel.{:<18} acc={:.3} macro={:.3} base={:.3} ({:+.3})",
-            field.field,
-            field.accuracy,
-            field.macro_recall,
-            field.baseline,
-            field.accuracy - field.baseline,
-        );
+}
+
+/// The gate: per-class recall for block_process — do the rare shapes get caught,
+/// or does the model collapse to the two baselines?
+fn print_block_process_recall(report: &EvalReport, vocab: &FeatureVocab) {
+    let Some(field) = report.block.iter().find(|f| f.field == "block_process") else {
+        return;
+    };
+    let name = |id: u32| {
+        vocab
+            .label("blocks.block_process", id as usize)
+            .unwrap_or("?")
+            .to_owned()
+    };
+    println!("\n=== GATE: block_process per-class recall (macro={:.3}) ===", field.macro_recall);
+    for (class, recall, support) in &field.class_recall {
+        println!("  {:<16} recall={recall:.3}  (n={support})", name(*class));
+    }
+    println!("\n--- confusion: true -> top predictions ---");
+    for (truth, _, support) in &field.class_recall {
+        let mut preds: Vec<(u32, usize)> = field
+            .confusion
+            .iter()
+            .filter(|(t, _, _)| t == truth)
+            .map(|(_, p, c)| (*p, *c))
+            .collect();
+        preds.sort_by(|a, b| b.1.cmp(&a.1));
+        let shown: Vec<String> = preds
+            .iter()
+            .take(3)
+            .map(|(p, c)| format!("{}={} ({:.0}%)", name(*p), c, *c as f64 / *support as f64 * 100.0))
+            .collect();
+        println!("  {:<16} -> {}", name(*truth), shown.join("  "));
     }
 }

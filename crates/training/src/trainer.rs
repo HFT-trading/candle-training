@@ -11,7 +11,7 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use structure_core::model::{MarketStructureModel, ModelOutput};
 use structure_core::normalizer::NumericNormalizer;
-use structure_core::sequence::{BLOCK_LABEL_FIELDS, RELATION_LABEL_FIELDS};
+use structure_core::sequence::BLOCK_LABEL_FIELDS;
 use structure_core::tensors::ModelInputs;
 use structure_core::vocab::FeatureVocab;
 
@@ -85,23 +85,34 @@ impl DataSplit {
     }
 }
 
-/// Inverse-frequency (balanced) class weights per field.
+/// Inverse-frequency (balanced) class weights per block field. `None` for a
+/// field means it is trained unweighted (plain cross-entropy).
 pub struct ClassWeights {
-    pub block: Vec<Tensor>,
-    pub relation: Vec<Tensor>,
+    pub block: Vec<Option<Tensor>>,
 }
 
 impl ClassWeights {
-    pub fn from_vocab(vocab: &FeatureVocab, device: &Device) -> Result<Self> {
+    /// Build per-field weights from `config`: weight every head when
+    /// `use_class_weights` is on, otherwise only the block fields named in
+    /// `weighted_block_fields` (rare flags like `absorption`).
+    pub fn from_config(
+        vocab: &FeatureVocab,
+        config: &TrainingConfig,
+        device: &Device,
+    ) -> Result<Self> {
         let block = BLOCK_LABEL_FIELDS
             .iter()
-            .map(|field| field_weights(vocab, &format!("blocks.{field}"), device))
+            .map(|field| {
+                if config.use_class_weights
+                    || config.weighted_block_fields.iter().any(|name| name == field)
+                {
+                    field_weights(vocab, &format!("blocks.{field}"), device).map(Some)
+                } else {
+                    Ok(None)
+                }
+            })
             .collect::<Result<Vec<_>>>()?;
-        let relation = RELATION_LABEL_FIELDS
-            .iter()
-            .map(|field| field_weights(vocab, &format!("relations.{field}"), device))
-            .collect::<Result<Vec<_>>>()?;
-        Ok(Self { block, relation })
+        Ok(Self { block })
     }
 }
 
@@ -186,14 +197,11 @@ pub fn train(
             None,
         )?;
         if verbose {
-            println!(
-                "epoch {epoch}: train total={:.4} block={:.4} rel={:.4} | val total={:.4} block={:.4} rel={:.4}",
-                train.0, train.1, train.2, validation.0, validation.1, validation.2
-            );
+            println!("epoch {epoch}: train block={train:.4} | val block={validation:.4}");
         }
 
-        if validation.0 + 1e-9 < best_val {
-            best_val = validation.0;
+        if validation + 1e-9 < best_val {
+            best_val = validation;
             best_epoch = epoch;
             best_eval = Some(evaluate(
                 model,
@@ -234,59 +242,37 @@ fn run_epoch(
     weights: Option<&ClassWeights>,
     config: &TrainingConfig,
     optimizer: Option<&mut AdamW>,
-) -> Result<(f64, f64, f64)> {
+) -> Result<f64> {
     let mut optimizer = optimizer;
-    let (mut sum_total, mut sum_block, mut sum_relation, mut seen) = (0.0, 0.0, 0.0, 0usize);
+    let (mut sum_block, mut seen) = (0.0, 0usize);
 
     for batch in indices.chunks(config.batch_size) {
         let inputs = select_inputs(tensors, normalizer, batch)?;
         let block_targets = select_rows(&tensors.block_targets, batch)?;
-        let relation_targets = select_rows(&tensors.relation_targets, batch)?;
         let output = model.forward(&inputs)?;
-        let (total, block, relation) =
-            total_loss(&output, &block_targets, &relation_targets, weights, config)?;
+        let loss = block_loss(&output, &block_targets, weights)?;
         if let Some(optimizer) = optimizer.as_deref_mut() {
-            optimizer.backward_step(&total)?;
+            optimizer.backward_step(&loss)?;
         }
-        let count = batch.len() as f64;
-        sum_total += total.to_scalar::<f32>()? as f64 * count;
-        sum_block += block * count;
-        sum_relation += relation * count;
+        sum_block += loss.to_scalar::<f32>()? as f64 * batch.len() as f64;
         seen += batch.len();
     }
 
-    let seen = seen.max(1) as f64;
-    Ok((sum_total / seen, sum_block / seen, sum_relation / seen))
+    Ok(sum_block / seen.max(1) as f64)
 }
 
-fn total_loss(
+fn block_loss(
     output: &ModelOutput,
     block_targets: &Tensor,
-    relation_targets: &Tensor,
     weights: Option<&ClassWeights>,
-    config: &TrainingConfig,
-) -> Result<(Tensor, f64, f64)> {
+) -> Result<Tensor> {
     let mut block_terms = Vec::with_capacity(output.block_logits.len());
     for (field, logits) in output.block_logits.iter().enumerate() {
         let targets = block_targets.narrow(2, field, 1)?.squeeze(2)?.contiguous()?;
-        let weight = weights.map(|class| &class.block[field]);
+        let weight = weights.and_then(|class| class.block[field].as_ref());
         block_terms.push(field_loss(logits, &targets, weight)?);
     }
-    let block_loss = average(&block_terms)?;
-
-    let mut relation_terms = Vec::with_capacity(output.relation_logits.len());
-    for (field, logits) in output.relation_logits.iter().enumerate() {
-        let targets = relation_targets.narrow(2, field, 1)?.squeeze(2)?.contiguous()?;
-        let weight = weights.map(|class| &class.relation[field]);
-        relation_terms.push(field_loss(logits, &targets, weight)?);
-    }
-    let relation_loss = average(&relation_terms)?;
-
-    let total = (block_loss.affine(config.block_loss_weight, 0.0)?
-        + relation_loss.affine(config.relation_loss_weight, 0.0)?)?;
-    let block_value = block_loss.to_scalar::<f32>()? as f64;
-    let relation_value = relation_loss.to_scalar::<f32>()? as f64;
-    Ok((total, block_value, relation_value))
+    average(&block_terms)
 }
 
 fn field_loss(logits: &Tensor, targets: &Tensor, weights: Option<&Tensor>) -> Result<Tensor> {
@@ -350,11 +336,16 @@ pub struct FieldAccuracy {
     pub macro_recall: f64,
     pub baseline: f64,
     pub samples: usize,
+    /// Per-class (0-based id, recall, support) — for inspecting whether rare
+    /// classes are actually caught (the block_process gate).
+    pub class_recall: Vec<(u32, f64, usize)>,
+    /// Confusion as (true id, predicted id, count) — to see if errors are
+    /// sensible-adjacent or wrong-opposite.
+    pub confusion: Vec<(u32, u32, usize)>,
 }
 
 pub struct EvalReport {
     pub block: Vec<FieldAccuracy>,
-    pub relation: Vec<FieldAccuracy>,
 }
 
 pub fn evaluate(
@@ -365,13 +356,11 @@ pub fn evaluate(
     batch_size: usize,
 ) -> Result<EvalReport> {
     let mut block = vec![FieldStats::default(); BLOCK_LABEL_FIELDS.len()];
-    let mut relation = vec![FieldStats::default(); RELATION_LABEL_FIELDS.len()];
 
     for batch in indices.chunks(batch_size.max(1)) {
         let inputs = select_inputs(tensors, normalizer, batch)?;
         let output = model.forward(&inputs)?;
         let block_targets = select_rows(&tensors.block_targets, batch)?;
-        let relation_targets = select_rows(&tensors.relation_targets, batch)?;
 
         for (field, stats) in block.iter_mut().enumerate() {
             let predicted = output.block_logits[field]
@@ -379,18 +368,6 @@ pub fn evaluate(
                 .flatten_all()?
                 .to_vec1::<u32>()?;
             let actual = block_targets
-                .narrow(2, field, 1)?
-                .squeeze(2)?
-                .flatten_all()?
-                .to_vec1::<u32>()?;
-            stats.add(&predicted, &actual);
-        }
-        for (field, stats) in relation.iter_mut().enumerate() {
-            let predicted = output.relation_logits[field]
-                .argmax(2)?
-                .flatten_all()?
-                .to_vec1::<u32>()?;
-            let actual = relation_targets
                 .narrow(2, field, 1)?
                 .squeeze(2)?
                 .flatten_all()?
@@ -405,11 +382,6 @@ pub fn evaluate(
             .zip(block)
             .map(|(field, stats)| stats.finish(field))
             .collect(),
-        relation: RELATION_LABEL_FIELDS
-            .iter()
-            .zip(relation)
-            .map(|(field, stats)| stats.finish(field))
-            .collect(),
     })
 }
 
@@ -421,6 +393,8 @@ struct FieldStats {
     histogram: HashMap<u32, usize>,
     /// Per true-class correct count (for recall).
     class_correct: HashMap<u32, usize>,
+    /// (true, predicted) -> count.
+    confusion: HashMap<(u32, u32), usize>,
 }
 
 impl FieldStats {
@@ -428,6 +402,7 @@ impl FieldStats {
         for (prediction, target) in predicted.iter().zip(actual) {
             self.total += 1;
             *self.histogram.entry(*target).or_insert(0) += 1;
+            *self.confusion.entry((*target, *prediction)).or_insert(0) += 1;
             if prediction == target {
                 self.correct += 1;
                 *self.class_correct.entry(*target).or_insert(0) += 1;
@@ -447,12 +422,28 @@ impl FieldStats {
             })
             .sum();
         let classes = self.histogram.len().max(1);
+        let mut class_recall: Vec<(u32, f64, usize)> = self
+            .histogram
+            .iter()
+            .map(|(class, count)| {
+                let hit = self.class_correct.get(class).copied().unwrap_or(0);
+                (*class, hit as f64 / *count as f64, *count)
+            })
+            .collect();
+        class_recall.sort_by(|a, b| b.2.cmp(&a.2)); // most-frequent first
+        let confusion = self
+            .confusion
+            .iter()
+            .map(|((truth, pred), count)| (*truth, *pred, *count))
+            .collect();
         FieldAccuracy {
             field: field.to_owned(),
             accuracy: self.correct as f64 / total as f64,
             macro_recall: recall_sum / classes as f64,
             baseline: majority as f64 / total as f64,
             samples: self.total,
+            class_recall,
+            confusion,
         }
     }
 }

@@ -3,7 +3,7 @@
 //! Rust mirror of the earlier Python scan — used to prove the data layer.
 
 use training::dataset::{build_vocab, load_contexts};
-use structure_core::sequence::{BLOCK_LABEL_FIELDS, RELATION_LABEL_FIELDS};
+use structure_core::sequence::BLOCK_LABEL_FIELDS;
 use structure_core::vocab::FeatureVocab;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -17,10 +17,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut shape_mismatches = 0usize;
     for context in &contexts {
         let shape = &context.metadata.shape;
-        let expected_relations = shape.context_blocks.saturating_sub(1);
         if context.training_data.sequences.len() != shape.sequence_len
             || context.labels.blocks.len() != shape.context_blocks
-            || context.labels.relations.len() != expected_relations
         {
             shape_mismatches += 1;
         }
@@ -32,10 +30,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== block labels (x4 / row) ===");
     for field in BLOCK_LABEL_FIELDS {
         print_field(&vocab, &format!("blocks.{field}"));
-    }
-    println!("\n=== relation labels (x3 / row) ===");
-    for field in RELATION_LABEL_FIELDS {
-        print_field(&vocab, &format!("relations.{field}"));
     }
 
     Ok(())
