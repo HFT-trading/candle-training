@@ -47,6 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &config.training,
             Some(&weights),
             false,
+            false, // measurement only — never clobber artifacts/model.safetensors
         )?;
         println!(
             "fold val={:<16} train={:>4} val={:>4} | best epoch {:>2} val {:.4}",

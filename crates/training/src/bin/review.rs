@@ -50,9 +50,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let net = *path.last().unwrap();
             let truth = &context.labels.blocks[block_index];
             let true_dir = label(truth, "direction");
-            let true_proc = label(truth, "block_process");
+            let true_proc = label(truth, "phase");
             let dir_ok = report.trend_bias == true_dir;
-            let proc_ok = report.block_process == true_proc;
+            let proc_ok = report.phase == true_proc;
             seen += 2;
             hits += dir_ok as usize + proc_ok as usize;
             println!(
@@ -61,7 +61,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 net,
                 sparkline(&path),
                 report.trend_bias,
-                report.block_process,
+                report.phase,
                 true_dir,
                 true_proc,
                 if dir_ok { "" } else { "  dir✗" },

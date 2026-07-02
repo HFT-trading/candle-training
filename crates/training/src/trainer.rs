@@ -157,6 +157,10 @@ pub fn train(
     config: &TrainingConfig,
     weights: Option<&ClassWeights>,
     verbose: bool,
+    // Whether to checkpoint best weights to `artifacts/model.safetensors`. The
+    // production `train` bin sets this; `crossval` sets it false so measuring
+    // never clobbers the shipped model.
+    save_best: bool,
 ) -> Result<TrainReport> {
     if config.epochs == 0 || config.batch_size == 0 {
         candle_core::bail!("epochs and batch_size must be > 0");
@@ -211,7 +215,9 @@ pub fn train(
                 config.batch_size,
             )?);
             // Checkpoint the best weights; `artifacts/` is created by the caller.
-            variables.save("artifacts/model.safetensors")?;
+            if save_best {
+                variables.save("artifacts/model.safetensors")?;
+            }
             stale = 0;
         } else {
             stale += 1;

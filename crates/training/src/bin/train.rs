@@ -52,6 +52,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         &config.training,
         Some(&weights),
         true,
+        true, // save best checkpoint to artifacts/
     )?;
 
     println!(

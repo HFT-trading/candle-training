@@ -29,11 +29,12 @@ pub const CATEGORICAL_FEATURES: [&str; 8] = [
     "pattern.name",
 ];
 
-/// Supervised per-block classification labels (head A). `block_process` is the
-/// 7-state intra-block shape (CleanDrive/PullbackHeld/Reclaim/FailedPush/
-/// Absorption/DirtyRotation/BalancedAuction) — it replaced both `path_quality`
-/// and the `absorption` flag (subsumed). `path_state` (clear/unclear) and the
-/// block-to-block `phase_change` are DERIVED from it in the report layer.
+/// Supervised per-block classification labels (head A). `phase` is the run/exhaust
+/// lifecycle (Running/Rejected/Stalling/Fading) — it REPLACED `block_process`,
+/// which under-learned (~0.40) because it was defined on intra-block micro-features
+/// the model never sees. `phase` is defined on block aggregates the model DOES see
+/// (net / opposite / effort), so it is learnable, and it is the product-facing
+/// "what is the market doing" read the report is built on.
 pub const BLOCK_LABEL_FIELDS: [&str; 7] = [
     "direction",
     "extension_rank",
@@ -41,7 +42,7 @@ pub const BLOCK_LABEL_FIELDS: [&str; 7] = [
     "range_frame_tag",
     "ended_bias",
     "reversal_risk",
-    "block_process",
+    "phase",
 ];
 
 /// Category used when a categorical field is absent from a sequence.
