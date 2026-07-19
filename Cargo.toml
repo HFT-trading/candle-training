@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/structure-core", "crates/training"]
+members = ["crates/training"]
 
 # Optimize dependencies (candle/gemm) even in debug builds so `cargo run` is fast
 # for tensor work, while keeping our own crates debuggable.
