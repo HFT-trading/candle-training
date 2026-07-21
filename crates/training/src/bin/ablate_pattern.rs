@@ -5,6 +5,7 @@
 
 use candle_core::Device;
 use structure_core::input::{StepFeatures, StepInput};
+use structure_core::sequence::BLOCK_LABEL_FIELDS;
 use structure_core::serve::StructureModel;
 use training::dataset::{Sequence, load_contexts};
 
@@ -43,15 +44,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let a = model.read(&model.encode(&real)?)?;
         let b = model.read(&model.encode(&wiped)?)?;
 
-        if a.phase != b.phase {
+        if a.phase.label != b.phase.label {
             phase_changed += 1;
         }
-        if a.phase != b.phase
-            || a.trend_bias != b.trend_bias
-            || a.risk_level != b.risk_level
-            || a.state_quality != b.state_quality
-            || a.control != b.control
-        {
+        if BLOCK_LABEL_FIELDS.iter().any(|field| {
+            a.prediction(field).map(|prediction| &prediction.label)
+                != b.prediction(field).map(|prediction| &prediction.label)
+        }) {
             any_changed += 1;
         }
     }
@@ -62,17 +61,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         pct(phase_changed, with_pattern)
     );
     println!(
-        "ANY field changed (phase/dir/risk/state/control): {any_changed}/{with_pattern} = {:.1}%",
+        "ANY trained head changed: {any_changed}/{with_pattern} = {:.1}%",
         pct(any_changed, with_pattern)
     );
-    println!(
-        "\nreading: ~0% => model ignores pattern (weight ~0); higher => it reads it."
-    );
+    println!("\nreading: ~0% => model ignores pattern (weight ~0); higher => it reads it.");
     Ok(())
 }
 
 fn pct(n: usize, d: usize) -> f64 {
-    if d == 0 { 0.0 } else { n as f64 / d as f64 * 100.0 }
+    if d == 0 {
+        0.0
+    } else {
+        n as f64 / d as f64 * 100.0
+    }
 }
 
 fn to_step(sequence: &Sequence) -> StepInput {

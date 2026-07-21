@@ -6,12 +6,18 @@
 use candle_core::Device;
 use serde_json::Value;
 use structure_core::input::{StepFeatures, StepInput};
+use structure_core::sequence::BLOCK_LABEL_FIELDS;
 use structure_core::serve::StructureModel;
 use training::dataset::{Context, Sequence, load_contexts};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let source = std::env::args().nth(1).unwrap_or_else(|| "data-test7.log".to_owned());
-    let max_contexts: usize = std::env::args().nth(2).and_then(|a| a.parse().ok()).unwrap_or(8);
+    let source = std::env::args()
+        .nth(1)
+        .unwrap_or_else(|| "data-test7.log".to_owned());
+    let max_contexts: usize = std::env::args()
+        .nth(2)
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(8);
 
     let device = Device::Cpu;
     let contexts = load_contexts("datasets/market_contexts.jsonl")?;
@@ -27,7 +33,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let stride = (picked.len() / max_contexts).max(1);
 
-    println!("source={source}  contexts={}  showing every {stride}th\n", picked.len());
+    println!(
+        "source={source}  contexts={}  showing every {stride}th\n",
+        picked.len()
+    );
     let mut hits = 0usize;
     let mut seen = 0usize;
     for (sample, context) in picked.iter().step_by(stride).take(max_contexts).enumerate() {
@@ -46,32 +55,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // not summed per-sequence net_bps (a different quantity).
             let prices: Vec<f64> = seqs.iter().map(|s| s.numeric("price") as f64).collect();
             let base = prices[0].max(1e-9);
-            let path: Vec<f64> = prices.iter().map(|p| (p - base) / base * 10_000.0).collect();
+            let path: Vec<f64> = prices
+                .iter()
+                .map(|p| (p - base) / base * 10_000.0)
+                .collect();
             let net = *path.last().unwrap();
             let truth = &context.labels.blocks[block_index];
-            let true_dir = label(truth, "direction");
-            let true_proc = label(truth, "phase");
-            let dir_ok = report.trend_bias == true_dir;
-            let proc_ok = report.phase == true_proc;
-            seen += 2;
-            hits += dir_ok as usize + proc_ok as usize;
             println!(
-                "  blk{}  net={:+6.1}  {}  | MODEL {:>4}/{:<14} | TRUE {:>4}/{:<14} {}{}",
+                "  blk{}  net={:+6.1}  {}",
                 block_index + 1,
                 net,
                 sparkline(&path),
-                report.trend_bias,
-                report.phase,
-                true_dir,
-                true_proc,
-                if dir_ok { "" } else { "  dir✗" },
-                if proc_ok { "" } else { "  proc✗" },
             );
+            for field in BLOCK_LABEL_FIELDS {
+                let prediction = report
+                    .prediction(field)
+                    .expect("report contains every trained head");
+                let expected = label(truth, field);
+                let matched = prediction.label == expected;
+                seen += 1;
+                hits += matched as usize;
+                println!(
+                    "    {field:<17} MODEL {:<14} ({:.3}) | TRUE {:<14} {}",
+                    prediction.label,
+                    prediction.confidence,
+                    expected,
+                    if matched { "" } else { "✗" },
+                );
+            }
         }
         println!();
     }
     println!(
-        "eyeball tally: {hits}/{seen} (direction+process) matched the deterministic label \
+        "eyeball tally: {hits}/{seen} predictions across all 7 heads matched the deterministic label \
          ({:.0}%). NOTE: this is model-vs-label; the real check is whether the SHAPE column \
          matches the read.",
         hits as f64 / seen.max(1) as f64 * 100.0
@@ -80,14 +96,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn label(map: &serde_json::Map<String, Value>, key: &str) -> String {
-    map.get(key).and_then(|v| v.as_str()).unwrap_or("-").to_owned()
+    map.get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or("-")
+        .to_owned()
 }
 
 /// Price path (bps vs block open) as a unicode sparkline (▁..█).
 fn sparkline(path: &[f64]) -> String {
     let bars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
     let lo = path.iter().cloned().fold(f64::INFINITY, f64::min).min(0.0);
-    let hi = path.iter().cloned().fold(f64::NEG_INFINITY, f64::max).max(0.0);
+    let hi = path
+        .iter()
+        .cloned()
+        .fold(f64::NEG_INFINITY, f64::max)
+        .max(0.0);
     let span = (hi - lo).max(1e-9);
     path.iter()
         .map(|v| bars[(((v - lo) / span) * (bars.len() - 1) as f64).round() as usize])
